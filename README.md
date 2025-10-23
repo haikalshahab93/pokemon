@@ -54,3 +54,30 @@ Catatan
 
 - Semua progres pemain disimpan otomatis di localStorage per user.
 - Efek visual (konfeti saat menang, haze saat kalah) muncul di EndBattleOverlay untuk menambah pengalaman bermain.
+
+Strategi Pertarungan
+
+- Ketahui tipe lawan dan pilih gerakan yang super-effective untuk damage maksimal.
+- Manfaatkan gerakan dengan peluang critical saat butuh burst damage.
+- Kelola risiko: jika HP menipis, pertimbangkan menutup pertarungan dan kembali lebih siap.
+- Jaga konsistensi win streak untuk meningkatkan hadiah.
+
+Daftar Badge (Contoh)
+
+- Streak Novice: capai win streak 3 pada Normal.
+- Streak Veteran: capai win streak 5 pada Normal atau 3 pada Hard.
+- Elemental Master: kalahkan lawan dengan banyak serangan super-effective.
+- Tough Challenger: menang melawan lawan Hard.
+
+Catatan Badge
+
+- Badge diperoleh berdasarkan kombinasi difficulty, win streak, dan performa.
+- Badge baru akan muncul di ringkasan hasil pertarungan.
+
+FAQ
+
+- Grid kosong, kenapa? Pastikan pencarian kosong, tipe = "All", dan matikan filter Favorites/Captured.
+- Cara ganti user? Gunakan dropdown User di Header atau tambah user baru di sana.
+- Tombol gerakan? Kamu bisa menekan angka 1–4 untuk memilih gerakan di BattleOverlay.
+- Rematch bagaimana? Di EndBattleOverlay, tekan tombol Rematch untuk melawan kembali.
+- Progres disimpan di mana? Semua progres (favorit, tangkapan, badge, streak) disimpan di localStorage per user.
