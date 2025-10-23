@@ -75,9 +75,36 @@ Catatan Badge
 - Badge baru akan muncul di ringkasan hasil pertarungan.
 
 FAQ
-
+ 
 - Grid kosong, kenapa? Pastikan pencarian kosong, tipe = "All", dan matikan filter Favorites/Captured.
 - Cara ganti user? Gunakan dropdown User di Header atau tambah user baru di sana.
 - Tombol gerakan? Kamu bisa menekan angka 1–4 untuk memilih gerakan di BattleOverlay.
 - Rematch bagaimana? Di EndBattleOverlay, tekan tombol Rematch untuk melawan kembali.
 - Progres disimpan di mana? Semua progres (favorit, tangkapan, badge, streak) disimpan di localStorage per user.
+
+Ilustrasi
+
+![Pokéball](public/pokeball.svg)
+
+Sistem Hadiah (Detail)
+
+- Difficulty multiplier: Easy=1.0, Normal=1.2, Hard=1.5, Insane=1.8.
+- Streak multiplier: 1 + min(0.5, winStreak × 0.1).
+- Performance bonus (menang):
+  - Turns ≤ 4: +0.10
+  - DamageTaken ≤ 20: +0.15
+  - SuperEffective ≥ 2: +0.10
+- Perhitungan coins:
+  - Menang: round((50 + 0.5×DamageDealt + 20) × Difficulty × Streak × (1 + PerfBonus))
+  - Kalah: round((15 + 0.4×DamageDealt) × Difficulty)
+- Perhitungan XP:
+  - Menang: round((100 + 0.8×DamageDealt + bonus 30 jika ada serangan super-effective) × Difficulty)
+  - Kalah: round((60 + 0.6×DamageDealt) × Difficulty)
+- Item drop:
+  - Menang: Super Potion ≈ 5%, Potion ≈ 20% (dipengaruhi pity bonus)
+  - Kalah: Super Potion ≈ 2%, Potion ≈ 8% (dipengaruhi pity bonus)
+- Achievement contoh:
+  - Perfect Guard: menang dengan DamageTaken ≤ 20
+  - Swift Victory: menang dengan Turns ≤ 4
+  - Type Master: SuperEffective ≥ 3
+  - Keep Fighting: kalah tetap dapat penyemangat
