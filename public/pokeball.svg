@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <defs>
+    <linearGradient id="redGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ff4d4d"/>
+      <stop offset="100%" stop-color="#d62424"/>
+    </linearGradient>
+    <linearGradient id="whiteGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="100%" stop-color="#e6e6e6"/>
+    </linearGradient>
+    <filter id="shadow" x="-50%" y="-50%" width="200%" height="200%">
+      <feDropShadow dx="0" dy="6" stdDeviation="4" flood-color="#000" flood-opacity="0.35"/>
+    </filter>
+  </defs>
+
+  <g filter="url(#shadow)">
+    <!-- Outer circle -->
+    <circle cx="100" cy="100" r="90" fill="#1a1a1a"/>
+
+    <!-- Top half (red) -->
+    <path d="M100,10 A90,90 0 0,1 190,100 L10,100 A90,90 0 0,1 100,10 Z" fill="url(#redGrad)"/>
+
+    <!-- Bottom half (white) -->
+    <path d="M10,100 L190,100 A90,90 0 0,1 100,190 A90,90 0 0,1 10,100 Z" fill="url(#whiteGrad)"/>
+
+    <!-- Center band -->
+    <rect x="10" y="92" width="180" height="16" fill="#1a1a1a"/>
+
+    <!-- Center button outer -->
+    <circle cx="100" cy="100" r="26" fill="#1a1a1a"/>
+    <!-- Center button inner -->
+    <circle cx="100" cy="100" r="18" fill="#f7f7f7"/>
+    <circle cx="100" cy="100" r="8" fill="#d9d9d9"/>
+  </g>
+</svg>
