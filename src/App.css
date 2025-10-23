@@ -246,9 +246,12 @@
 .capture-actions .skip { padding: 8px 12px; border: 1px solid var(--border); background: transparent; color: var(--text); border-radius: 8px; cursor: pointer; }
 
 /* Fullscreen Battle overlay (override) */
-.battle-arena { width: 100vw; height: 100vh; border-radius: 0; padding: 24px; box-shadow: none; }
-.battle-entities { height: calc(100vh - 260px); }
-.battle-entities .arena-pokemon { width: clamp(200px, 24vw, 360px); height: clamp(200px, 24vw, 360px); }
+.battle-backdrop { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.6); z-index: 1000; overflow: hidden; }
+.battle-arena { position: relative; width: min(100vw, 1200px); height: 100vh; box-sizing: border-box; padding: 16px; }
+.battle-entities { position: relative; height: calc(100vh - 280px); overflow: hidden; }
+.battle-entities .arena-pokemon { width: clamp(200px, 24vw, 360px); height: clamp(200px, 24vw, 360px); max-width: 40vw; max-height: 40vh; }
+.battle-controls { position: sticky; bottom: 16px; background: rgba(0,0,0,0.15); backdrop-filter: blur(4px); padding: 10px; border-radius: 12px; }
+.projectile { pointer-events: none; }
 .battle-info { font-size: 18px; }
 .battle-controls .move { font-size: 14px; padding: 10px 16px; }
 .battle-log { max-height: 22vh; }
@@ -320,3 +323,21 @@
 .battle-btn { padding: 8px 12px; border-radius: 999px; border: none; background: #1976d2; color: #fff; cursor: pointer; font-weight: 600; }
 .battle-btn:hover { background: #1565c0; }
 @media (max-width: 600px) { .battle-entities { grid-template-columns: 1fr; } .arena-pokemon { width: 140px; height: 140px; } }
+
+/* End battle overlay styles */
+.end-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.6); display: flex; align-items: center; justify-content: center; z-index: 1200; }
+.end-arena { position: relative; width: min(720px, 92vw); background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 16px; box-shadow: 0 10px 30px rgba(0,0,0,0.3); overflow: hidden; }
+.end-arena h2 { margin: 0 0 8px; }
+.end-summary { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 12px; margin-bottom: 10px; font-size: 14px; }
+.end-reward { border-top: 1px solid var(--border); padding-top: 10px; margin-top: 6px; display: grid; gap: 6px; }
+.end-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 12px; }
+
+/* Victory confetti */
+.end-arena.victory::before, .end-arena.victory::after { content: ""; position: absolute; left: 0; right: 0; height: 100%; pointer-events: none; }
+.end-arena.victory::before { background-image: radial-gradient(circle at 20% 20%, rgba(255,215,0,0.15), transparent 40%), radial-gradient(circle at 80% 30%, rgba(0,200,120,0.12), transparent 40%), radial-gradient(circle at 50% 80%, rgba(0,150,255,0.12), transparent 40%); }
+.end-arena.victory::after { background-image: repeating-linear-gradient(45deg, transparent 0 8px, rgba(255,215,0,0.12) 8px 10px), repeating-linear-gradient(-45deg, transparent 0 8px, rgba(0,200,120,0.12) 8px 10px); opacity: 0.6; }
+
+/* Defeat haze */
+.end-arena.defeat { box-shadow: 0 0 0 9999px rgba(0,0,0,0); }
+.end-arena.defeat::before { content: ""; position: absolute; inset: 0; background: radial-gradient(circle at 50% 0%, rgba(255,255,255,0.05), transparent 40%), linear-gradient(180deg, rgba(0,0,0,0.2), transparent 60%); pointer-events: none; }
+.end-arena.defeat::after { content: ""; position: absolute; inset: 0; background: rgba(0,0,0,0.06); pointer-events: none; }

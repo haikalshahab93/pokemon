@@ -261,8 +261,13 @@ export default function App() {
   const [favoritesOnly, setFavoritesOnly] = useState(false)
   const [capturedOnly, setCapturedOnly] = useState(false)
 
+  // Tambahan state untuk Modal & Captures
+  const [modalOpen, setModalOpen] = useState(false)
+  const [modalPokemon, setModalPokemon] = useState(null)
+  const [capturesOpen, setCapturesOpen] = useState(false)
   const [types, setTypes] = useState([])
   const [pokemon, setPokemon] = useState([])
+  const pokemonMap = useMemo(() => new Map(pokemon.map(p => [p.id, p])), [pokemon])
   const [nextUrl, setNextUrl] = useState('https://pokeapi.co/api/v2/pokemon?limit=24')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -279,14 +284,46 @@ export default function App() {
   })
   const [currentUser, setCurrentUser] = useState(() => localStorage.getItem('user') || 'trainer')
   function capKey(user) { return `captures:${user}` }
+  // Reward & progress storage keys (per user)
+  const coinsKey = (user) => `coins:${user}`
+  const invKey = (user) => `inventory:${user}`
+  const xpKey = (user) => `xp:${user}`
+  const streakKey = (user) => `streak:${user}`
+  const achKey = (user) => `ach:${user}`
+  const pityKey = (user) => `pity:${user}`
+  const diffKey = (user) => `difficulty:${user}`
+  const badgeKey = (user) => `badges:${user}`
   const [captures, setCaptures] = useState(() => {
+     try {
+       const arr = JSON.parse(localStorage.getItem(capKey(currentUser)) || '[]')
+       return Array.from(new Set(arr))
+     } catch {
+       return []
+     }
+   })
+  // Progress states
+  const [coins, setCoins] = useState(0)
+  const [inventory, setInventory] = useState([])
+  const [streakWins, setStreakWins] = useState(0)
+  const [pityBonus, setPityBonus] = useState(0)
+  const [difficulty, setDifficulty] = useState('Normal')
+  const [achievements, setAchievements] = useState([])
+  const [badges, setBadges] = useState([])
+  const [endOpen, setEndOpen] = useState(false)
+  const [endData, setEndData] = useState(null)
+  const [lastOpponent, setLastOpponent] = useState(null)
+  // Load progress when user changes
+  useEffect(() => {
     try {
-      const arr = JSON.parse(localStorage.getItem(capKey(currentUser)) || '[]')
-      return Array.from(new Set(arr))
-    } catch {
-      return []
-    }
-  })
+      const c = parseInt(localStorage.getItem(coinsKey(currentUser)) || '0'); setCoins(isNaN(c)?0:c)
+      const inv = JSON.parse(localStorage.getItem(invKey(currentUser)) || '[]'); setInventory(Array.isArray(inv)?inv:[])
+      const st = parseInt(localStorage.getItem(streakKey(currentUser)) || '0'); setStreakWins(isNaN(st)?0:st)
+      const pity = parseInt(localStorage.getItem(pityKey(currentUser)) || '0'); setPityBonus(isNaN(pity)?0:pity)
+      const diff = localStorage.getItem(diffKey(currentUser)) || 'Normal'; setDifficulty(diff)
+      const ach = JSON.parse(localStorage.getItem(achKey(currentUser)) || '[]'); setAchievements(Array.isArray(ach)?ach:[])
+      const b = JSON.parse(localStorage.getItem(badgeKey(currentUser)) || '[]'); setBadges(Array.isArray(b)?b:[])
+    } catch {}
+  }, [currentUser])
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme)
@@ -435,77 +472,90 @@ export default function App() {
   const [battleOpen, setBattleOpen] = useState(false)
   const [battlePair, setBattlePair] = useState({ player: null, opponent: null })
   function startBattle(opponentPokemon) {
-    // pilih pokemon pemain: prioritas dari tangkapan pertama, jika tidak ada pakai pokemon pertama di daftar
-    const playerId = captures[0]
-    const playerFromCapture = playerId ? pokemonMap.get(playerId) : null
-    const fallbackPlayer = playerFromCapture || (pokemon.length ? pokemon[0] : opponentPokemon)
-    setBattlePair({ player: fallbackPlayer, opponent: opponentPokemon })
-    setBattleOpen(true)
+     // pilih pokemon pemain: prioritas dari tangkapan pertama, jika tidak ada pakai pokemon pertama di daftar
+     const playerId = captures[0]
+     const playerFromCapture = playerId ? pokemonMap.get(playerId) : null
+     const fallbackPlayer = playerFromCapture || (pokemon.length ? pokemon[0] : opponentPokemon)
+     setBattlePair({ player: fallbackPlayer, opponent: opponentPokemon })
+     setLastOpponent(opponentPokemon)
+     setBattleOpen(true)
+   }
+  // Reward calculation (depends on difficulty, streakWins, pityBonus)
+  function calculateRewards(result, metrics) {
+    const diffMul = { Easy: 1.0, Normal: 1.2, Hard: 1.5, Insane: 1.8 }[difficulty] || 1.2
+    const streakMul = 1 + Math.min(0.5, streakWins * 0.1)
+    const perfBonus = (metrics?.turns <= 4 ? 0.1 : 0) + ((metrics?.damageTaken ?? 0) <= 20 ? 0.15 : 0) + ((metrics?.superEffective ?? 0) >= 2 ? 0.1 : 0)
+    let coinsGain, xpGain
+    if (result === 'win') {
+      coinsGain = Math.round((50 + 0.5*(metrics?.damageDealt||0) + 20) * diffMul * streakMul * (1+perfBonus))
+      xpGain = Math.round((100 + 0.8*(metrics?.damageDealt||0) + ((metrics?.superEffective||0)>0?30:0)) * diffMul)
+    } else {
+      coinsGain = Math.round((15 + 0.4*(metrics?.damageDealt||0)) * diffMul)
+      xpGain = Math.round((60 + 0.6*(metrics?.damageDealt||0)) * diffMul)
+    }
+    // Item drop
+    const basePotion = result==='win'?0.20:0.08
+    const baseSuper = result==='win'?0.05:0.02
+    const pityMul = 1 + Math.min(0.5, pityBonus/100)
+    const roll = Math.random()
+    let itemDrop = null
+    if (roll < baseSuper*pityMul) itemDrop = 'Super Potion'; else if (roll < basePotion*pityMul) itemDrop = 'Potion'
+    // Achievements (simple)
+    const newAch = []
+    if (result==='win' && (metrics?.damageTaken ?? 999) <= 20) newAch.push('Perfect Guard')
+    if (result==='win' && (metrics?.turns||0) <= 4) newAch.push('Swift Victory')
+    if ((metrics?.superEffective||0) >= 3) newAch.push('Type Master')
+    if (result==='lose') newAch.push('Keep Fighting')
+    return { coinsGain, xpGain, itemDrop, newAch }
   }
-
-  function handleBattleEnd(result) {
-    setToast({ type: result === 'win' ? 'success' : 'error', message: result === 'win' ? 'Anda menang!' : 'Anda kalah!' })
+  function handleBattleEnd(payload) {
+    const result = typeof payload === 'string' ? payload : payload?.result
+    const metrics = typeof payload === 'object' ? payload?.metrics : null
+    const { coinsGain, xpGain, itemDrop, newAch } = calculateRewards(result, metrics || { damageDealt: result==='win'?100:0, damageTaken: result==='lose'?100:0, turns: 0, superEffective: 0 })
+    setCoins(prev => { const next = prev + coinsGain; localStorage.setItem(coinsKey(currentUser), String(next)); return next })
+    // XP per Pokemon (store map by id)
+    const pid = typeof payload === 'object' ? payload?.player?.id : battlePair.player?.id
+    try {
+      const map = JSON.parse(localStorage.getItem(xpKey(currentUser)) || '{}')
+      const prevXP = parseInt(map[pid] || '0') || 0
+      map[pid] = prevXP + xpGain
+      localStorage.setItem(xpKey(currentUser), JSON.stringify(map))
+    } catch {}
+    // Inventory
+    if (itemDrop) {
+      setInventory(prev => { const next = [...prev, itemDrop]; localStorage.setItem(invKey(currentUser), JSON.stringify(next)); return next })
+    }
+    // Streak & pity
+    let newBadges = []
+    if (result === 'win') {
+      const nextStreak = streakWins + 1
+      setStreakWins(nextStreak); localStorage.setItem(streakKey(currentUser), String(nextStreak))
+      const nextPity = Math.max(0, pityBonus - 10); setPityBonus(nextPity); localStorage.setItem(pityKey(currentUser), String(nextPity))
+      // Badges
+      if (!badges.includes('First Win')) newBadges.push('First Win')
+      if (nextStreak >= 5 && !badges.includes('Streak 5')) newBadges.push('Streak 5')
+      if (nextStreak >= 10 && !badges.includes('Streak 10')) newBadges.push('Streak 10')
+      if (difficulty === 'Insane' && !badges.includes('Insane Victor')) newBadges.push('Insane Victor')
+    } else {
+      setStreakWins(0); localStorage.setItem(streakKey(currentUser), '0')
+      const nextPity = Math.min(100, pityBonus + 10); setPityBonus(nextPity); localStorage.setItem(pityKey(currentUser), String(nextPity))
+    }
+    // Achievements
+    if (newAch.length) {
+      setAchievements(prev => { const set = new Set(prev); newAch.forEach(a => set.add(a)); const arr = Array.from(set); localStorage.setItem(achKey(currentUser), JSON.stringify(arr)); return arr })
+    }
+    // Persist badges
+    if (newBadges.length) {
+      setBadges(prev => { const set = new Set(prev); newBadges.forEach(b => set.add(b)); const arr = Array.from(set); localStorage.setItem(badgeKey(currentUser), JSON.stringify(arr)); return arr })
+    }
+    setEndData({ result, metrics, rewards: { coinsGain, xpGain, itemDrop, newAch, newBadges }, opponent: lastOpponent })
+    setEndOpen(true)
+    setToast({ type: result === 'win' ? 'success' : 'error', message: result === 'win' ? `Anda menang! +${coinsGain} coins` : `Anda kalah. +${coinsGain} coins` })
     setTimeout(() => setToast(null), 2000)
   }
 
-  function handleUserChange(u) {
-    setCurrentUser(u)
-    localStorage.setItem('user', u)
-    const list = JSON.parse(localStorage.getItem(capKey(u)) || '[]')
-    setCaptures(Array.from(new Set(list)))
-  }
-  function handleAddUser(name) {
-    setUsers(prev => {
-      const exists = prev.includes(name)
-      const next = exists ? prev : [...prev, name]
-      localStorage.setItem('users', JSON.stringify(next))
-      if (!exists) localStorage.setItem(capKey(name), JSON.stringify([]))
-      return next
-    })
-    handleUserChange(name)
-  }
-
-  const filtered = useMemo(() => {
-    let data = pokemon
-    if (selectedType) {
-      data = data.filter(p => p.types.includes(selectedType))
-    }
-    if (favoritesOnly) {
-      data = data.filter(p => favorites.includes(p.id))
-    }
-    if (capturedOnly) {
-      data = data.filter(p => captures.includes(p.id))
-    }
-    if (search && pokemon.length > 1) {
-      data = data.filter(p => p.name.includes(search))
-    }
-    // Dedup by id to avoid React duplicate key warnings
-    const map = new Map()
-    for (const it of data) { if (!map.has(it.id)) map.set(it.id, it) }
-    return Array.from(map.values())
-  }, [pokemon, selectedType, favoritesOnly, favorites, search, capturedOnly, captures])
-
-  function openModal(p) {
-    setModalPokemon(p)
-    setModalOpen(true)
-  }
-
-  const pokemonMap = useMemo(() => {
-    const m = new Map()
-    for (const p of pokemon) m.set(p.id, p)
-    return m
-  }, [pokemon])
-
-  const [modalOpen, setModalOpen] = useState(false)
-  const [modalPokemon, setModalPokemon] = useState(null)
-  const [capturesOpen, setCapturesOpen] = useState(false)
-
   return (
     <div className="app">
-      <div className="topbar">
-        <ThemeToggle theme={theme} onToggle={() => setTheme(theme === 'dark' ? 'light' : 'dark')} />
-      </div>
-
       <Header
         search={search}
         setSearch={setSearch}
@@ -516,90 +566,115 @@ export default function App() {
         setFavoritesOnly={setFavoritesOnly}
         capturedOnly={capturedOnly}
         setCapturedOnly={setCapturedOnly}
-        totalCount={filtered.length}
+        totalCount={pokemon.length}
         users={users}
         currentUser={currentUser}
-        onUserChange={handleUserChange}
-        onAddUser={handleAddUser}
+        onUserChange={(u) => { setCurrentUser(u); localStorage.setItem('user', u) }}
+        onAddUser={(u) => { if (!u) return; setUsers(prev => { const set = new Set(prev); set.add(u); const arr = Array.from(set); localStorage.setItem('users', JSON.stringify(arr)); localStorage.setItem('user', u); setCurrentUser(u); return arr }) }}
         onOpenCaptures={() => setCapturesOpen(true)}
       />
-
-      <form className="search-form" onSubmit={handleSearchSubmit}>
-        <button className="search-btn" type="submit">🔍 Cari</button>
-      </form>
-
-      {error && <div className="error">{error}</div>}
-      {toast && <div className={`toast ${toast.type}`}>{toast.message}</div>}
-
-      <main className="grid">
-        {filtered.map(p => (
-          <PokemonCard
-            key={p.id}
-            p={p}
-            isFavorite={favorites.includes(p.id)}
-            onToggleFavorite={toggleFavorite}
-            onOpen={openModal}
-            isCaptured={captures.includes(p.id)}
-            onCapture={startCapture}
-            onBattle={startBattle}
-          />
-        ))}
-        {loading && (
-          <div className="skeletons">
-            {Array.from({ length: 6 }).map((_, i) => <div className="skeleton" key={i} />)}
-          </div>
+       <main>
+         {loading && (
+           <div className="skeletons">
+             {Array.from({ length: 6 }).map((_, i) => <div className="skeleton" key={i} />)}
+           </div>
+         )}
+        {!loading && (
+          <>
+            {error && <div className="error">{error}</div>}
+            <div className="grid">
+              {pokemon
+                .filter((p) => (
+                  (!selectedType || p.types.includes(selectedType)) &&
+                  (!favoritesOnly || favorites.includes(p.id)) &&
+                  (!capturedOnly || captures.includes(p.id)) &&
+                  (!search || p.name.toLowerCase().includes(search))
+                ))
+                .map((p) => (
+                  <PokemonCard
+                    key={p.id}
+                    p={p}
+                    isFavorite={favorites.includes(p.id)}
+                    onToggleFavorite={toggleFavorite}
+                    onOpen={(pp) => { setModalPokemon(pp); setModalOpen(true) }}
+                    isCaptured={captures.includes(p.id)}
+                    onCapture={startCapture}
+                    onBattle={startBattle}
+                  />
+                ))}
+            </div>
+          </>
         )}
-      </main>
-
-      <div className="actions">
-        <button className="load-more" disabled={!nextUrl || loading} onClick={loadMore}>
-          {loading ? 'Memuat…' : nextUrl ? 'Muat Lebih Banyak' : 'Semua dimuat'}
-        </button>
-        <button className="reset" onClick={() => { setPokemon([]); setNextUrl('https://pokeapi.co/api/v2/pokemon?limit=24'); setSelectedType(''); setSearch(''); setFavoritesOnly(false); setCapturedOnly(false); loadMore() }}>Reset</button>
+       </main>
+ 
+       <div className="actions">
+         <button className="load-more" disabled={!nextUrl || loading} onClick={loadMore}>
+           {loading ? 'Memuat…' : nextUrl ? 'Muat Lebih Banyak' : 'Semua dimuat'}
+         </button>
+         <button className="reset" onClick={() => { setPokemon([]); setNextUrl('https://pokeapi.co/api/v2/pokemon?limit=24'); setSelectedType(''); setSearch(''); setFavoritesOnly(false); setCapturedOnly(false); loadMore() }}>Reset</button>
+       </div>
+ 
+       <Modal open={modalOpen} onClose={() => setModalOpen(false)} pokemon={modalPokemon} onCapture={startCapture} onBattle={startBattle} />
+       <CapturesModal open={capturesOpen} onClose={() => setCapturesOpen(false)} capturedList={captures} onRelease={releaseCapture} pokemonMap={pokemonMap} />
+ 
+        <CaptureOverlay
+           open={captureOpen}
+           pokemon={captureTarget}
+           onClose={() => { setCaptureOpen(false); setCaptureTarget(null) }}
+           onFinalize={(p, success, rate) => finalizeCapture(p, success, rate)}
+         />
+ 
+       <BattleOverlay
+         open={battleOpen}
+         player={battlePair.player}
+         opponent={battlePair.opponent}
+         onClose={() => setBattleOpen(false)}
+         onEnd={handleBattleEnd}
+       />
+ 
+       <EndBattleOverlay
+         open={endOpen}
+         data={endData}
+         onClose={() => setEndOpen(false)}
+         onRematch={() => { setEndOpen(false); if (lastOpponent) startBattle(lastOpponent) }}
+       ></EndBattleOverlay>
+      {toast && <div className={`toast ${toast.type}`}>{toast.message}</div>}
       </div>
-
-      <Modal open={modalOpen} onClose={() => setModalOpen(false)} pokemon={modalPokemon} onCapture={startCapture} onBattle={startBattle} />
-      <CapturesModal open={capturesOpen} onClose={() => setCapturesOpen(false)} capturedList={captures} onRelease={releaseCapture} pokemonMap={pokemonMap} />
-
-      <BattleOverlay
-          open={battleOpen}
-          player={battlePair.player}
-          opponent={battlePair.opponent}
-          onClose={() => setBattleOpen(false)}
-          onEnd={handleBattleEnd}
-        />
-
-       <CaptureOverlay
-          open={captureOpen}
-          pokemon={captureTarget}
-          onClose={() => { setCaptureOpen(false); setCaptureTarget(null) }}
-          onFinalize={(p, success, rate) => finalizeCapture(p, success, rate)}
-        />
-     </div>
-   )
- }
+    )
+  }
  
  function BattleOverlay({ open, player, opponent, onClose, onEnd }) {
-  const [playerHP, setPlayerHP] = useState(100)
-  const [enemyHP, setEnemyHP] = useState(100)
-  const [turn, setTurn] = useState('player')
-  const [log, setLog] = useState([])
-  const maxHP = 100
-  const [playerAnim, setPlayerAnim] = useState('')
-  const [enemyAnim, setEnemyAnim] = useState('')
-  const [proj, setProj] = useState(null)
-  const [audioEnabled, setAudioEnabled] = useState(() => {
-    try { return localStorage.getItem('audio') !== 'off' } catch { return true }
-  })
-  const audioCtxRef = useRef(null)
-
-  useEffect(() => {
-    if (!open) return
-    setPlayerHP(100)
-    setEnemyHP(100)
-    setTurn('player')
-    setLog([])
-  }, [open, player, opponent])
+   const [playerHP, setPlayerHP] = useState(100)
+   const [enemyHP, setEnemyHP] = useState(100)
+   const [turn, setTurn] = useState('player')
+   const [log, setLog] = useState([])
+   const maxHP = 100
+   const [playerAnim, setPlayerAnim] = useState('')
+   const [enemyAnim, setEnemyAnim] = useState('')
+   const [proj, setProj] = useState(null)
+   const [audioEnabled, setAudioEnabled] = useState(() => {
+     try { return localStorage.getItem('audio') !== 'off' } catch { return true }
+   })
+   const audioCtxRef = useRef(null)
+   // metrics tracking
+   const [turns, setTurns] = useState(0)
+   const [damageDealt, setDamageDealt] = useState(0)
+   const [damageTaken, setDamageTaken] = useState(0)
+   const [superEffective, setSuperEffective] = useState(0)
+   const [critical, setCritical] = useState(0)
+   useEffect(() => {
+     if (!open) return
+     setPlayerHP(100)
+     setEnemyHP(100)
+     setTurn('player')
+     setLog([])
+     // reset metrics
+     setTurns(0)
+     setDamageDealt(0)
+     setDamageTaken(0)
+     setSuperEffective(0)
+     setCritical(0)
+   }, [open, player, opponent])
 
   // Tambahkan keyboard shortcuts: 1-4 untuk move, Esc untuk tutup
   useEffect(() => {
@@ -696,11 +771,13 @@ export default function App() {
       const next = Math.min(maxHP, playerHP + 15)
       setPlayerHP(next)
       addLog(`${player.name} memulihkan HP +15`)
+      setTurns(t => t + 1)
     } else {
       playSfx('attack')
       const result = calculateDamage(player, opponent, move)
       if (result.miss || result.eff === 0) {
         addLog(`${player.name} menyerang (${move}) ‒ Miss/Tidak berefek!`)
+        setTurns(t => t + 1)
       } else {
         const next = Math.max(0, enemyHP - result.dmg)
         setEnemyHP(next)
@@ -713,10 +790,16 @@ export default function App() {
         if (result.eff === 0.5) info += ` • Tidak terlalu efektif.`
         if (result.stab > 1) info += ` • STAB`
         addLog(info)
+        // metrics
+        setTurns(t => t + 1)
+        setDamageDealt(d => d + result.dmg)
+        if (result.eff === 2) setSuperEffective(s => s + 1)
+        if (result.crit) setCritical(c => c + 1)
         if (next <= 0) {
           playSfx('ko')
           addLog(`${opponent.name} kalah!`)
-          setTimeout(() => { onEnd('win'); onClose() }, 800)
+          const metrics = { turns, damageDealt: damageDealt + result.dmg, damageTaken, superEffective: superEffective + (result.eff===2?1:0), critical: critical + (result.crit?1:0) }
+          setTimeout(() => { onEnd({ result: 'win', metrics, player }); onClose() }, 800)
           return
         }
       }
@@ -744,10 +827,13 @@ export default function App() {
       if (result.eff === 0.5) info += ` • Tidak terlalu efektif.`
       if (result.stab > 1) info += ` • STAB`
       addLog(info)
+      // metrics
+      setDamageTaken(d => d + result.dmg)
       if (next <= 0) {
         playSfx('ko')
         addLog(`${player.name} kalah…`)
-        setTimeout(() => { onEnd('lose'); onClose() }, 800)
+        const metrics = { turns, damageDealt, damageTaken: damageTaken + result.dmg, superEffective, critical }
+        setTimeout(() => { onEnd({ result: 'lose', metrics, player }); onClose() }, 800)
         return
       }
     }
@@ -807,3 +893,81 @@ export default function App() {
 }
 
 function getHPColor(pct) { return pct >= 60 ? '#43a047' : pct >= 30 ? '#f1c40f' : '#e53935' }
+
+
+
+function EndBattleOverlay({ open, data, onClose, onRematch }) {
+  if (!open || !data) return null
+  const { result, metrics, rewards } = data
+  const isWin = result === 'win'
+  const [confetti, setConfetti] = useState([])
+
+  useEffect(() => {
+    if (!open) return
+    if (isWin) {
+      const pieces = Array.from({ length: 40 }).map(() => ({
+        left: Math.round(Math.random() * 100),
+        size: Math.round(6 + Math.random() * 10),
+        duration: (6 + Math.random() * 4).toFixed(2),
+        delay: (Math.random() * 1.5).toFixed(2),
+        color: ['#e74c3c','#f1c40f','#2ecc71','#3498db','#9b59b6'][Math.floor(Math.random() * 5)],
+        rotateSpeed: (1 + Math.random() * 2).toFixed(2)
+      }))
+      setConfetti(pieces)
+    } else {
+      setConfetti([])
+    }
+  }, [open, isWin])
+
+  return (
+    <div className="end-backdrop" onClick={onClose}>
+      <style>{`
+        @keyframes confettiFall { from { transform: translateY(-120vh) rotate(0deg); opacity: 1; } to { transform: translateY(120vh) rotate(720deg); opacity: 0.6; } }
+        @keyframes confettiSpin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        @keyframes hazePulse { 0% { opacity: 0.2; } 50% { opacity: 0.35; } 100% { opacity: 0.2; } }
+        .confetti-container { position: fixed; inset: 0; pointer-events: none; overflow: hidden; }
+        .confetti-piece { position: absolute; top: -10vh; border-radius: 2px; }
+        .defeat-haze { position: fixed; inset: 0; pointer-events: none; background: radial-gradient(closest-side, rgba(0,0,0,0.35), rgba(0,0,0,0)); animation: hazePulse 3s ease-in-out infinite; }
+      `}</style>
+      {isWin && (
+        <div className="confetti-container" aria-hidden>
+          {confetti.map((c, i) => (
+            <div
+              key={i}
+              className="confetti-piece"
+              style={{
+                left: `${c.left}%`,
+                width: `${c.size}px`,
+                height: `${Math.round(c.size * 1.6)}px`,
+                background: c.color,
+                animation: `confettiFall ${c.duration}s linear ${c.delay}s`
+              }}
+            />
+          ))}
+        </div>
+      )}
+      {!isWin && <div className="defeat-haze" aria-hidden />}
+      <div className={`end-arena ${isWin ? 'victory' : 'defeat'}`} onClick={e=>e.stopPropagation()}>
+        <h2>{isWin ? 'Victory!' : 'Defeat'}</h2>
+        <div className="end-summary">
+          <div>Turns: {metrics?.turns ?? '-'}</div>
+          <div>Damage dealt: {metrics?.damageDealt ?? '-'}</div>
+          <div>Damage taken: {metrics?.damageTaken ?? '-'}</div>
+          <div>Super effective: {metrics?.superEffective ?? 0}</div>
+          <div>Critical hits: {metrics?.critical ?? 0}</div>
+        </div>
+        <div className="end-reward">
+          <div>Coins +{rewards.coinsGain}</div>
+          <div>XP +{rewards.xpGain}</div>
+          {rewards.itemDrop ? <div>Item: {rewards.itemDrop}</div> : <div>Tidak ada item</div>}
+          {rewards.newAch?.length ? <div>Achievement: {rewards.newAch.join(', ')}</div> : null}
+          {rewards.newBadges?.length ? <div>Badge: {rewards.newBadges.join(', ')}</div> : null}
+        </div>
+        <div className="end-actions">
+          <button className="battle-btn" onClick={onClose}>Lanjut</button>
+          <button className="battle-btn" onClick={onRematch}>Ulang</button>
+        </div>
+      </div>
+    </div>
+  )
+}
