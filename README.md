@@ -108,3 +108,21 @@ Sistem Hadiah (Detail)
   - Swift Victory: menang dengan Turns ≤ 4
   - Type Master: SuperEffective ≥ 3
   - Keep Fighting: kalah tetap dapat penyemangat
+
+Panduan Visual Reward (EndBattleOverlay)
+
+- Coins: ikon koin, warna emas/kuning, format “Coins +nilai”.
+- XP: ikon bintang, warna biru, format “XP +nilai”.
+- Item: ikon hadiah, warna hijau jika ada drop; abu-abu dengan teks “Tidak ada item” jika tidak ada.
+- Achievement: ditampilkan sebagai daftar, warna merah.
+- Badge: ditampilkan sebagai daftar, warna ungu.
+
+Contoh Tampilan Reward
+
+- Coins +120 • XP +240 • Item: Potion ×1 • Achievement: Swift Victory • Badge: Streak Novice
+
+Catatan Tampilan
+
+- Warna dan ikon membantu membedakan jenis reward secara cepat.
+- Efek konfeti (menang) atau haze (kalah) muncul di latar belakang untuk menandai hasil.
+- Tooltip singkat dapat ditambahkan untuk menjelaskan faktor pengali jika diperlukan.
