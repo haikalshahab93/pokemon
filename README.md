@@ -52,10 +52,10 @@ Tips
 Menjalankan Proyek
 
 - Install: npm install
-- Jalankan frontend: npm run dev -- --port 5202 (atau 5173/5201 sesuai ketersediaan)
-- Jalankan backend: set PORT=4001 lalu npm run dev (Windows PowerShell)
-- Set frontend env: set VITE_API_URL=http://localhost:4001
-- Buka di browser: http://localhost:5202/ (atau port yang kamu pilih)
+- Jalankan frontend: npm run dev (default Vite: http://localhost:5200/)
+- Jalankan backend: npm run dev (port default 4000). Jika ingin override: set PORT=4000
+- Set frontend env: set VITE_API_URL=http://localhost:4000
+- Buka di browser: http://localhost:5200/ (atau port yang kamu pilih)
 
 Catatan
 
@@ -207,10 +207,10 @@ Referensi implementasi:
 
 ## Backend & Autentikasi
 
-- Server backend berjalan di port 4001 (atau 4000 jika tidak diset). Jalankan di folder `server` dengan `set PORT=4001` lalu `npm run dev`.
+- Server backend berjalan di port 4000 (default). Jalankan di folder `server` dengan `npm run dev`. Jika perlu override: set PORT=4000.
 - Endpoint `POST /users/:username/captures` menerima dan menyimpan field baru: `origin`, `isLucky`, `variationPct`, `evolveBonusPct`, `finalStats`, `xpAtCapture`.
 - Jika user terdaftar (memiliki `passwordHash`), sertakan header `Authorization: Bearer <token>` pada request. Username di token harus sama dengan `:username` pada path. Jika tidak sesuai, akan mendapat 401/403.
-- Pastikan variabel lingkungan frontend `VITE_API_URL` mengarah ke `http://localhost:4001` agar komunikasi dengan backend berjalan baik.
+- Pastikan variabel lingkungan frontend `VITE_API_URL` mengarah ke `http://localhost:4000` agar komunikasi dengan backend berjalan baik.
 
 ## Menjalankan Proyek Lengkap
 
