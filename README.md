@@ -126,3 +126,23 @@ Catatan Tampilan
 - Warna dan ikon membantu membedakan jenis reward secara cepat.
 - Efek konfeti (menang) atau haze (kalah) muncul di latar belakang untuk menandai hasil.
 - Tooltip singkat dapat ditambahkan untuk menjelaskan faktor pengali jika diperlukan.
+
+# Pembaruan Sistem Hadiah: Weapon Drop
+
+- Weapon sebagai hadiah baru bagi user saat menang.
+- Persentase drop (mudah didapat sesuai permintaan):
+  - Easy: ±25%
+  - Normal: ±30%
+  - Hard: ±35%
+  - Insane: ±40%
+- Faktor yang sedikit mempengaruhi peluang: performa, streak, dan pity bonus (pengaruh kecil).
+
+Tampilan di EndBattleOverlay
+
+- Weapon: ikon pedang (🗡️), gaya warna abu-abu gelap/putih, format “Weapon: Nama Senjata”.
+- Contoh: “Weapon: Iron Sword” atau “Weapon: Wooden Sword”.
+
+Catatan
+
+- Weapon yang didapat otomatis masuk ke Inventory user.
+- Jika tidak drop, bagian Weapon tidak ditampilkan.
