@@ -12,6 +12,7 @@ const CaptureSchema = new mongoose.Schema({
   isLucky: { type: Boolean, default: false },
   variationPct: { type: Number, default: 0 },
   evolveBonusPct: { type: Number, default: 0 },
+  levelBonusPct: { type: Number, default: 0 },
   finalStats: { type: [{ name: String, value: Number }], default: [] },
 }, { timestamps: { createdAt: true, updatedAt: true } })
 

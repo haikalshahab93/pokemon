@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 
 export default function Header({
   search, setSearch,
@@ -75,6 +76,7 @@ export default function Header({
         {onOpenBag && (
           <button className="bag-btn" onClick={onOpenBag}>Bag</button>
         )}
+        <Link className="bag-btn" to="/evo" title="Panduan Evolusi">Evo</Link>
       </div>
     </header>
   )

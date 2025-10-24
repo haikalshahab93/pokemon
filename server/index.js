@@ -106,7 +106,7 @@ app.post('/users/:username/reward', async (req, res) => {
   try {
     const { username } = req.params
     const { coinsGain = 0, xpGain = 0, pid, itemDrop, weaponDrop, newBadges = [], newAch = [], result, metrics, streakWins,
-      captureAdd, captureRemove } = req.body || {}
+      captureAdd, captureRemove, captureOid } = req.body || {}
     let user = await User.findOne({ username })
     if (!user) user = await User.create({ username })
 
@@ -123,12 +123,46 @@ app.post('/users/:username/reward', async (req, res) => {
 
     // coins
     user.coins = (user.coins || 0) + (coinsGain || 0)
-    // xp map per pokemon id
-    const pidStr = (pid !== undefined && pid !== null) ? String(pid) : null
-    if (pidStr) {
-      const prev = user.xpMap.get(pidStr) || 0
-      user.xpMap.set(pidStr, prev + (xpGain || 0))
+
+    // XP & Level Bonus: jika captureOid diberikan, update XP spesifik dan bonus level per-OID
+    if (captureOid) {
+      const cap = await Capture.findOne({ _id: captureOid, username })
+      if (cap) {
+        const prevXP = cap.xpAtCapture || 0
+        const newXP = prevXP + (xpGain || 0)
+        cap.xpAtCapture = newXP
+        // Hitung level (cap ke maksimal 100)
+        const xpToLevel = (xp) => Math.max(1, Math.min(100, Math.floor((xp || 0) / 150) + 1))
+        const prevLvl = xpToLevel(prevXP)
+        const newLvl = xpToLevel(newXP)
+        const gained = Math.max(0, newLvl - prevLvl)
+        if (gained > 0) {
+          let addedPct = 0
+          for (let i = 0; i < gained; i++) {
+            addedPct += 0.01 + Math.random() * 0.04 // +1%..+5% per level naik
+          }
+          cap.levelBonusPct = (cap.levelBonusPct || 0) + addedPct
+        }
+        await cap.save()
+      }
+    } else {
+      // Legacy: xp map per pokemon id
+      const pidStr = (pid !== undefined && pid !== null) ? String(pid) : null
+      if (pidStr) {
+        const prev = user.xpMap.get(pidStr) || 0
+        const newXP = prev + (xpGain || 0)
+        user.xpMap.set(pidStr, newXP)
+        // Level bonus untuk path legacy (agar konsisten)
+        const xpToLevel = (xp) => Math.max(1, Math.min(100, Math.floor((xp || 0) / 150) + 1))
+        const prevLvl = xpToLevel(prev)
+        const newLvl = xpToLevel(newXP)
+        const gained = Math.max(0, newLvl - prevLvl)
+        if (gained > 0) {
+          // Simpan di user.statBonusMap? Model User belum punya, jadi dilewati untuk legacy DB; tetap dikelola di frontend localStorage.
+        }
+      }
     }
+
     // inventory item
     if (itemDrop) user.inventoryItems.push(itemDrop)
     // weapon
@@ -233,6 +267,38 @@ app.delete('/users/:username/captures/by-pokemon/:pokemonId', async (req, res) =
     user.capturedIds = Array.from(set)
     await user.save()
     res.json({ ok: true, deleted: resDel?.deletedCount || 0, user })
+  } catch (e) { res.status(500).json({ error: e.message }) }
+})
+
+// Delete a single capture record by its OID (one-by-one release)
+app.delete('/users/:username/captures/:oid', async (req, res) => {
+  try {
+    const { username, oid } = { username: req.params.username, oid: req.params.oid }
+    let user = await User.findOne({ username })
+    if (!user) user = await User.create({ username })
+    if (user.passwordHash) {
+      const header = req.headers.authorization || ''
+      const m = header.match(/^Bearer\s+(.+)$/)
+      if (!m) return res.status(401).json({ error: 'unauthorized' })
+      try {
+        const payload = jwt.verify(m[1], JWT_SECRET)
+        if (payload?.username !== username) return res.status(403).json({ error: 'forbidden' })
+      } catch (e) { return res.status(401).json({ error: 'invalid token' }) }
+    }
+    const doc = await Capture.findOne({ _id: oid, username })
+    if (!doc) return res.status(404).json({ error: 'not_found' })
+    const pid = doc.pokemonId
+    await Capture.deleteOne({ _id: oid, username })
+    const remaining = await Capture.countDocuments({ username, pokemonId: pid })
+    const set = new Set(user.capturedIds || [])
+    if (remaining > 0) {
+      set.add(pid)
+    } else {
+      set.delete(pid)
+    }
+    user.capturedIds = Array.from(set)
+    await user.save()
+    res.json({ ok: true, deleted: 1, user })
   } catch (e) { res.status(500).json({ error: e.message }) }
 })
 

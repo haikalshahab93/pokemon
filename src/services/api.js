@@ -51,6 +51,11 @@ export const api = {
     if (typeof pokemonId !== 'number') throw new Error('pokemonId harus number')
     return request(`/users/${encodeURIComponent(username)}/captures/by-pokemon/${pokemonId}`, { method: 'DELETE' })
   },
+  async deleteCaptureByOid(username, oid) {
+    if (!username) throw new Error('username kosong')
+    if (!oid) throw new Error('oid kosong')
+    return request(`/users/${encodeURIComponent(username)}/captures/${encodeURIComponent(oid)}`, { method: 'DELETE' })
+  },
   async register(username, password) {
     return request(`/auth/register`, { method: 'POST', body: { username, password } })
   },
