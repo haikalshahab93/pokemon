@@ -615,11 +615,7 @@ async function handleLogin(u, p) {
             badges={badges}
             achievements={achievements}
           />
-          <EvoModal
-            open={evoOpen}
-            onClose={() => setEvoOpen(false)}
-            pokemonList={pokemon}
-          />
+          {/* EvoModal removed after migrating to full-page /evo */}
           {/* Evolution animation overlay */}
           <EvolutionOverlay
             open={evolveOpen}
