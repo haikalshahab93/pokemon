@@ -1,4 +1,5 @@
 import React from 'react'
+import { useNavigate } from 'react-router-dom'
 export default function CapturesModal({ open, onClose, capturedList, onRelease, pokemonMap, onEvolve, xpMap, xpToLevel, evoInfoMap, captureHistory, setToast, selectForBattleMode, onPickForBattle, xpByOidMap, xpProgress }) {
   if (!open) return null
   const history = Array.isArray(captureHistory) ? captureHistory : []
@@ -7,6 +8,7 @@ export default function CapturesModal({ open, onClose, capturedList, onRelease, 
   const [expandedId, setExpandedId] = React.useState(null)
   // Indikator penghapusan per OID
   const [deletingOid, setDeletingOid] = React.useState(null)
+  const navigate = useNavigate()
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-card captures-modal" onClick={(e) => e.stopPropagation()}>
@@ -87,40 +89,25 @@ export default function CapturesModal({ open, onClose, capturedList, onRelease, 
                         ) : null}
                         <div className="card-actions">
                           <button className="btn btn-secondary" disabled={isDeleting} onClick={async () => {
-                            const oid = rec._id
-                            if (!oid) {
-                              window.alert('Catatan ini tidak memiliki OID, sehingga tidak dapat dihapus satu-per-satu.')
-                              return
-                            }
-                            const ok = window.confirm(`Yakin ingin release catatan untuk ${p.name}? Proses penghapusan dilakukan satu per satu.`)
+                            const ok = window.confirm(`Hapus tangkapan ${p.name} (#${p.id})?`)
                             if (!ok) return
                             try {
                               setDeletingOid(oid)
-                              if (typeof onRelease === 'function') {
-                                await onRelease(oid)
-                                if (typeof setToast === 'function') {
-                                  setToast({ type: 'success', message: `Berhasil release catatan ${p.name}.` })
-                                  setTimeout(() => setToast(null), 1500)
-                                }
-                              }
-                            } catch (e) {
-                              if (typeof setToast === 'function') {
-                                setToast({ type: 'error', message: `Gagal release ${p.name}.` })
-                                setTimeout(() => setToast(null), 2000)
-                              }
+                              if (typeof onRelease === 'function') await onRelease(oid)
                             } finally {
                               setDeletingOid(null)
                             }
                           }}>{isDeleting ? 'Menghapus…' : 'Release'}</button>
                           <button className="btn btn-primary" onClick={() => {
                             const ok = window.confirm(`Evolve ${p.name} (#${p.id}) sekarang? Pastikan level memenuhi syarat evolusi.`)
-                            if (ok && typeof onEvolve === 'function') onEvolve({ pid: rec.pokemonId, captureOid: oid, liveXP })
+                            if (ok && typeof onEvolve === 'function') onEvolve(rec.pokemonId)
                           }}>Evolve</button>
                           {selectForBattleMode ? (
                             <button className="btn btn-primary" onClick={() => {
                               if (typeof onPickForBattle === 'function') onPickForBattle({ ...p, captureOid: oid })
                             }}>Pilih untuk Battle</button>
                           ) : null}
+                          <button className="btn" onClick={() => navigate(`/evo?q=${encodeURIComponent(p.name)}&full=1`)} title="Buka panduan evolusi untuk Pokémon ini">Lihat Evolusi</button>
                         </div>
                       </div>
                     </div>
