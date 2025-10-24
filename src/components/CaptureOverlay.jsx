@@ -1,12 +1,15 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 
 export default function CaptureOverlay({ open, pokemon, onClose, onFinalize }) {
   const [stage, setStage] = useState('idle') // idle | throw | shake1 | shake2 | shake3 | result
   const [result, setResult] = useState(null) // null | 'success' | 'fail'
   const [rate, setRate] = useState(() => Math.floor(30 + Math.random() * 50))
+  const finalizedRef = useRef(false)
 
   useEffect(() => {
     if (!open || !pokemon) return
+    // reset flag for each open cycle
+    finalizedRef.current = false
     setStage('throw')
     setResult(null)
     setRate(Math.floor(30 + Math.random() * 50))
@@ -21,6 +24,8 @@ export default function CaptureOverlay({ open, pokemon, onClose, onFinalize }) {
       setResult(success ? 'success' : 'fail')
       // finalize after short delay
       timers.push(setTimeout(() => {
+        if (finalizedRef.current) return
+        finalizedRef.current = true
         onFinalize(pokemon, success, rate)
         onClose()
       }, 1000))
@@ -46,7 +51,7 @@ export default function CaptureOverlay({ open, pokemon, onClose, onFinalize }) {
           <p>Rate: {rate}% • {stage === 'result' ? (result === 'success' ? 'Berhasil!' : 'Gagal') : 'Melempar bola…'}</p>
         </div>
         <div className="capture-actions">
-          <button className="skip" onClick={() => { onFinalize(pokemon, false, rate); onClose() }}>Lewati</button>
+          <button className="skip" onClick={() => { if (!finalizedRef.current) { finalizedRef.current = true; onFinalize(pokemon, false, rate) } onClose() }}>Lewati</button>
         </div>
       </div>
     </div>

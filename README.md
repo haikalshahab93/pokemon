@@ -171,3 +171,46 @@ Tips Evolusi
 
 - Bertarung secara konsisten untuk mengumpulkan XP. Kombinasi damage, super-effective, dan difficulty membantu mempercepat XP.
 - Tidak semua Pokémon punya evolusi. Jika sistem tidak menemukan evolusi di chain PokeAPI, akan ditampilkan pesan bahwa Pokémon ini tidak memiliki evolusi.
+
+## Pembaruan Capture & Stat Bonus
+
+Sistem penangkapan kini memiliki variasi status dan penandaan asal yang lebih detail:
+
+- Capture normal: bonus status acak sebesar +2% hingga +15% dari base stat Pokémon saat tertangkap.
+- Capture Lucky: peluang kecil (≈0.002%) untuk mendapatkan bonus besar sebesar +45% hingga +60% dari base stat. Riwayat akan menandai `isLucky = true`.
+- Riwayat capture menyimpan detail: `origin` (`capture` atau `evolved`), `method` (mis. `pokeball`), `variationPct`, `evolveBonusPct`, `xpAtCapture`, dan `finalStats` (stat akhir setelah bonus).
+
+Referensi implementasi:
+- Frontend logika capture & evolusi: <mcfile name="App.jsx" path="c:\Users\USER1\Documents\project\pokemon\src\App.jsx"></mcfile>
+- Model Capture (backend): <mcfile name="Capture.js" path="c:\Users\USER1\Documents\project\pokemon\server\models\Capture.js"></mcfile>
+- Endpoint penambahan riwayat capture: <mcfile name="index.js" path="c:\Users\USER1\Documents\project\pokemon\server\index.js"></mcfile>
+- Frontend API: <mcfile name="api.js" path="c:\Users\USER1\Documents\project\pokemon\src\services\api.js"></mcfile>
+
+## Sistem Bonus Level (Level-Up Bonus)
+
+- Setiap kali Pokémon naik level, statusnya mendapat bonus acak sebesar +1% hingga +5% per level yang didapat pada pertarungan tersebut.
+- Bonus level disimpan per Pokémon per user (Local Storage, kunci `statBonus:<username>`) dan bersifat akumulatif.
+- Saat evolusi, bonus level yang sudah terkumpul akan ditransfer ke Pokémon hasil evolusi sehingga tidak hilang.
+
+## Evolusi dengan Bonus Status
+
+- Saat evolusi, status pra-evolusi (setelah memperhitungkan bonus level yang sudah ada) akan dinaikkan lagi secara acak sebesar +40% hingga +72% (`evolveBonusPct`).
+- Riwayat capture akan mencatat `origin: 'evolved'` dan menyimpan `finalStats` setelah peningkatan evolusi.
+- XP dan bonus level ditransfer dari ID Pokémon lama ke ID hasil evolusi.
+
+## Backend & Autentikasi
+
+- Server backend berjalan di port 4000. Jalankan di folder `server` dengan `npm run dev`.
+- Endpoint `POST /users/:username/captures` menerima dan menyimpan field baru: `origin`, `isLucky`, `variationPct`, `evolveBonusPct`, `finalStats`, `xpAtCapture`.
+- Jika user terdaftar (memiliki `passwordHash`), sertakan header `Authorization: Bearer <token>` pada request. Username di token harus sama dengan `:username` pada path. Jika tidak sesuai, akan mendapat 401/403.
+- Pastikan variabel lingkungan frontend `VITE_API_URL` mengarah ke `http://localhost:4000` agar komunikasi dengan backend berjalan baik.
+
+## Menjalankan Proyek Lengkap
+
+- Frontend (root): `npm run dev` (port default Vite atau gunakan `--port 5200/5201` sesuai kebutuhan).
+- Backend (server): `npm run dev` (port 4000).
+- Login sebagai user aktif di dropdown Header untuk memastikan riwayat capture tersimpan ke database. Untuk pengujian tanpa autentikasi, gunakan user non-registered.
+
+## Catatan UI (Opsional)
+
+- Riwayat tangkapan di CapturesModal dapat menampilkan badge "Lucky", persentase `variationPct`, dan label "Evolved" dengan `evolveBonusPct`. Pengayaan UI ini dapat diaktifkan sesuai preferensi.

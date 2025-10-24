@@ -5,9 +5,11 @@ require('dotenv').config()
 
 const jwt = require('jsonwebtoken')
 const bcrypt = require('bcryptjs')
+const { MongoMemoryServer } = require('mongodb-memory-server')
 
 const User = require('./models/User')
 const Weapon = require('./models/Weapon')
+const Capture = require('./models/Capture')
 
 const app = express()
 app.use(cors())
@@ -15,11 +17,18 @@ app.use(express.json())
 
 const MONGO_URI = process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/pokemon'
 const JWT_SECRET = process.env.JWT_SECRET || 'dev_secret_change_me'
-mongoose.connect(MONGO_URI).then(() => {
-  console.log('MongoDB connected')
-}).catch(err => {
-  console.error('MongoDB connection error', err)
-})
+
+let memServer = null
+async function connectMongo() {
+  if (process.env.USE_MEM === '1') {
+    memServer = await MongoMemoryServer.create()
+    const uri = memServer.getUri()
+    await mongoose.connect(uri)
+  } else {
+    await mongoose.connect(MONGO_URI)
+  }
+}
+void connectMongo()
 
 app.get('/health', (req, res) => { res.json({ ok: true }) })
 
@@ -84,8 +93,10 @@ app.post('/users', async (req, res) => {
 app.get('/users/:username', async (req, res) => {
   try {
     const { username } = req.params
-    const user = await User.findOne({ username })
-    if (!user) return res.status(404).json({ error: 'user tidak ditemukan' })
+    let user = await User.findOne({ username })
+    if (!user) {
+      user = await User.create({ username })
+    }
     res.json(user)
   } catch (e) { res.status(500).json({ error: e.message }) }
 })
@@ -94,7 +105,8 @@ app.get('/users/:username', async (req, res) => {
 app.post('/users/:username/reward', async (req, res) => {
   try {
     const { username } = req.params
-    const { coinsGain = 0, xpGain = 0, pid, itemDrop, weaponDrop, newBadges = [], newAch = [], result, metrics, streakWins } = req.body || {}
+    const { coinsGain = 0, xpGain = 0, pid, itemDrop, weaponDrop, newBadges = [], newAch = [], result, metrics, streakWins,
+      captureAdd, captureRemove } = req.body || {}
     let user = await User.findOne({ username })
     if (!user) user = await User.create({ username })
 
@@ -130,6 +142,16 @@ app.post('/users/:username/reward', async (req, res) => {
     // streak
     if (typeof streakWins === 'number' && streakWins >= 0) user.streakWins = streakWins
 
+    // capturedIds sync
+    if (typeof captureRemove === 'number') {
+      user.capturedIds = (user.capturedIds || []).filter(id => id !== captureRemove)
+    }
+    if (typeof captureAdd === 'number') {
+      const set = new Set(user.capturedIds || [])
+      set.add(captureAdd)
+      user.capturedIds = Array.from(set)
+    }
+
     await user.save()
     res.json({ ok: true, user })
   } catch (e) { res.status(500).json({ error: e.message }) }
@@ -143,20 +165,86 @@ app.get('/weapons', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }) }
 })
 
+// Get capture history for a user
+app.get('/users/:username/captures', async (req, res) => {
+  try {
+    const { username } = req.params
+    let user = await User.findOne({ username })
+    if (!user) user = await User.create({ username })
+    if (user.passwordHash) {
+      const header = req.headers.authorization || ''
+      const m = header.match(/^Bearer\s+(.+)$/)
+      if (!m) return res.status(401).json({ error: 'unauthorized' })
+      try {
+        const payload = jwt.verify(m[1], JWT_SECRET)
+        if (payload?.username !== username) return res.status(403).json({ error: 'forbidden' })
+      } catch (e) { return res.status(401).json({ error: 'invalid token' }) }
+    }
+    const list = await Capture.find({ username }).sort({ createdAt: -1 }).limit(500)
+    res.json(list)
+  } catch (e) { res.status(500).json({ error: e.message }) }
+})
+
+// Add a capture record for a user and sync capturedIds
+app.post('/users/:username/captures', async (req, res) => {
+  try {
+    const { username } = req.params
+    const { pokemonId, method = 'overlay', rate, xpAtCapture = 0, notes, origin = 'capture', isLucky, variationPct, evolveBonusPct, finalStats } = req.body || {}
+    if (typeof pokemonId !== 'number') return res.status(400).json({ error: 'pokemonId diperlukan (number)' })
+    let user = await User.findOne({ username })
+    if (!user) user = await User.create({ username })
+    if (user.passwordHash) {
+      const header = req.headers.authorization || ''
+      const m = header.match(/^Bearer\s+(.+)$/)
+      if (!m) return res.status(401).json({ error: 'unauthorized' })
+      try {
+        const payload = jwt.verify(m[1], JWT_SECRET)
+        if (payload?.username !== username) return res.status(403).json({ error: 'forbidden' })
+      } catch (e) { return res.status(401).json({ error: 'invalid token' }) }
+    }
+    const capture = await Capture.create({ username, pokemonId, method, rate, xpAtCapture, notes, origin, isLucky: !!isLucky, variationPct: Number(variationPct) || 0, evolveBonusPct: Number(evolveBonusPct) || 0, finalStats: Array.isArray(finalStats) ? finalStats : [] })
+    const set = new Set(user.capturedIds || [])
+    set.add(pokemonId)
+    user.capturedIds = Array.from(set)
+    await user.save()
+    res.json({ ok: true, capture, user })
+  } catch (e) { res.status(500).json({ error: e.message }) }
+})
+
+// Delete capture records for a specific pokemon of a user (history cleanup)
+app.delete('/users/:username/captures/by-pokemon/:pokemonId', async (req, res) => {
+  try {
+    const { username, pokemonId } = { username: req.params.username, pokemonId: parseInt(req.params.pokemonId, 10) }
+    let user = await User.findOne({ username })
+    if (!user) user = await User.create({ username })
+    if (user.passwordHash) {
+      const header = req.headers.authorization || ''
+      const m = header.match(/^Bearer\s+(.+)$/)
+      if (!m) return res.status(401).json({ error: 'unauthorized' })
+      try {
+        const payload = jwt.verify(m[1], JWT_SECRET)
+        if (payload?.username !== username) return res.status(403).json({ error: 'forbidden' })
+      } catch (e) { return res.status(401).json({ error: 'invalid token' }) }
+    }
+    const pid = pokemonId
+    const resDel = await Capture.deleteMany({ username, pokemonId: pid })
+    const set = new Set(user.capturedIds || [])
+    set.delete(pid)
+    user.capturedIds = Array.from(set)
+    await user.save()
+    res.json({ ok: true, deleted: resDel?.deletedCount || 0, user })
+  } catch (e) { res.status(500).json({ error: e.message }) }
+})
+
 const http = require('http')
 const PORT = parseInt(process.env.PORT || '4000', 10)
 const server = http.createServer(app)
 function start(port) {
-  server.listen(port, () => console.log(`Server listening on http://localhost:${port}`))
+  server.listen(port, () => {
+    console.log(`Server listening on port ${port}`)
+  })
 }
 server.on('error', (err) => {
-  if (err && err.code === 'EADDRINUSE') {
-    const fallback = PORT + 1
-    console.warn(`Port ${PORT} in use, trying ${fallback}...`)
-    setTimeout(() => start(fallback), 100)
-  } else {
-    console.error('Server error:', err)
-    process.exit(1)
-  }
+  console.error('Server error:', err)
 })
 start(PORT)

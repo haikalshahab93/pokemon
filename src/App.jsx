@@ -68,6 +68,7 @@ export default function App() {
   const pityKey = (user) => `pity:${user}`
   const diffKey = (user) => `difficulty:${user}`
   const badgeKey = (user) => `badges:${user}`
+  const statBonusKey = (user) => `statBonus:${user}`
   const [captures, setCaptures] = useState(() => {
      try {
        const arr = JSON.parse(localStorage.getItem(capKey(currentUser)) || '[]')
@@ -95,46 +96,36 @@ export default function App() {
   const [battlePair, setBattlePair] = useState({ player: null, opponent: null })
   const [captureOpen, setCaptureOpen] = useState(false)
   const [captureTarget, setCaptureTarget] = useState(null)
+  // Guard agar finalizeCapture hanya dieksekusi sekali per sesi capture
+  const captureFinalizedRef = useRef(false)
   // State XP per Pokemon (per user)
   const [xpMap, setXpMap] = useState(() => {
     try { return JSON.parse(localStorage.getItem(xpKey(currentUser)) || '{}') } catch { return {} }
   })
+  const [statBonusMap, setStatBonusMap] = useState(() => {
+    try { return JSON.parse(localStorage.getItem(statBonusKey(currentUser)) || '{}') } catch { return {} }
+  })
+  // Tambahan: cache info evolusi per Pokémon yang ditangkap
+  const [evoInfoMap, setEvoInfoMap] = useState({})
   // duplicate captureTarget state removed
-
-  // Favorites toggle
-  function toggleFavorite(id) {
-    setFavorites(prev => {
-      const set = new Set(prev)
-      if (set.has(id)) set.delete(id); else set.add(id)
-      const arr = Array.from(set)
-      try { localStorage.setItem('favorites', JSON.stringify(arr)) } catch {}
-      return arr
-    })
-  }
-
-  // Capture flow
-  function startCapture(p) {
-    setCaptureTarget(p)
-    setCaptureOpen(true)
-  }
-  function finalizeCapture(pokemon, success, rate) {
-    if (success) {
-      setCaptures(prev => {
-        const set = new Set(prev); set.add(pokemon.id)
-        const arr = Array.from(set)
-        try { localStorage.setItem(capKey(currentUser), JSON.stringify(arr)) } catch {}
-        return arr
-      })
-      setToast({ type: 'success', message: `Berhasil menangkap ${pokemon.name}!` })
-    } else {
-      setToast({ type: 'error', message: `Gagal menangkap ${pokemon.name}.` })
-    }
-    setTimeout(() => setToast(null), 2000)
-  }
+  // Tambahan: riwayat capture dari backend
+  const [captureHistory, setCaptureHistory] = useState([])
+  useEffect(() => {
+    if (!capturesOpen) return
+    let cancelled = false
+    api.getCaptures(currentUser)
+      .then(list => { if (!cancelled) setCaptureHistory(Array.isArray(list) ? list : []) })
+      .catch(() => { if (!cancelled) setCaptureHistory([]) })
+    return () => { cancelled = true }
+  }, [capturesOpen, currentUser])
   function releaseCapture(id) {
     setCaptures(prev => {
       const arr = prev.filter(x => x !== id)
       try { localStorage.setItem(capKey(currentUser), JSON.stringify(arr)) } catch {}
+      // sinkronkan ke backend (persist)
+      try { void api.applyReward(currentUser, { captureRemove: id }) } catch {}
+      // hapus riwayat untuk pokemon ini (opsional pembersihan)
+      try { void api.deleteCaptureByPokemon(currentUser, id) } catch {}
       return arr
     })
   }
@@ -188,6 +179,18 @@ export default function App() {
     }
     // sinkronkan xpMap saat user berganti
     try { setXpMap(JSON.parse(localStorage.getItem(xpKey(currentUser)) || '{}')) } catch { setXpMap({}) }
+    // sinkronkan statBonusMap saat user berganti
+    try { setStatBonusMap(JSON.parse(localStorage.getItem(statBonusKey(currentUser)) || '{}')) } catch { setStatBonusMap({}) }
+    // pull captures dari backend untuk user ini (override local jika ada)
+    try {
+      void api.getUser(currentUser).then(u => {
+        const srv = Array.isArray(u?.capturedIds) ? u.capturedIds : []
+        if (srv.length) {
+          setCaptures(Array.from(new Set(srv)))
+          try { localStorage.setItem(capKey(currentUser), JSON.stringify(srv)) } catch {}
+        }
+      }).catch(() => {})
+    } catch {}
   }, [currentUser])
 
   // Auto-logout settings and handler
@@ -280,6 +283,23 @@ export default function App() {
      localStorage.setItem(xpKey(currentUser), JSON.stringify(map))
      // sinkronkan state xpMap
      setXpMap(map)
+     // cek kenaikan level dan terapkan bonus status +1%..+5% per level naik
+     const prevLevel = xpToLevel(prevXP)
+     const newLevel = xpToLevel(map[pid])
+     const levelsGained = Math.max(0, newLevel - prevLevel)
+     if (levelsGained > 0) {
+       let addedPct = 0
+       for (let i = 0; i < levelsGained; i++) {
+         addedPct += 0.01 + Math.random() * 0.04
+       }
+       setStatBonusMap(prev => {
+         const next = { ...(prev || {}) }
+         const cur = parseFloat(next[pid] || '0') || 0
+         next[pid] = cur + addedPct
+         try { localStorage.setItem(statBonusKey(currentUser), JSON.stringify(next)) } catch {}
+         return next
+       })
+     }
    } catch {}
    // Inventory
    if (itemDrop) {
@@ -360,6 +380,73 @@ async function handleLogin(u, p) {
   }
 }
 
+  // Toggle favorit untuk Pokemon (menerima id atau objek Pokemon)
+  function toggleFavorite(arg) {
+    const id = typeof arg === 'object' ? arg?.id : arg
+    if (!id) return
+    setFavorites(prev => {
+      const set = new Set(prev)
+      const wasFav = set.has(id)
+      if (wasFav) set.delete(id); else set.add(id)
+      const arr = Array.from(set)
+      try { localStorage.setItem('favorites', JSON.stringify(arr)) } catch {}
+      setToast({ type: wasFav ? 'error' : 'success', message: wasFav ? 'Dihapus dari favorit' : 'Ditambahkan ke favorit' })
+      setTimeout(() => setToast(null), 1500)
+      return arr
+    })
+  }
+
+  // Mulai proses capture: buka overlay capture untuk pokemon yang dipilih
+  function startCapture(p) {
+    if (!p) return
+    captureFinalizedRef.current = false
+    setCaptureTarget(p)
+    setCaptureOpen(true)
+    setModalOpen(false)
+  }
+
+  // Finalize proses capture dari overlay
+  function finalizeCapture(p, success, rate) {
+    if (!p) return
+    if (captureFinalizedRef.current) return
+    captureFinalizedRef.current = true
+    // tutup overlay
+    setCaptureOpen(false)
+    setCaptureTarget(null)
+    if (success) {
+      // tambah ke daftar captures secara unik
+      setCaptures(prev => {
+        const set = new Set(prev)
+        set.add(p.id)
+        const arr = Array.from(set)
+        try { localStorage.setItem(capKey(currentUser), JSON.stringify(arr)) } catch {}
+        // hitung variasi stat dan lucky
+        const baseStats = Array.isArray(p.stats) ? p.stats : []
+        const lucky = Math.random() < 0.00002 // 0.002%
+        const bonusPct = lucky ? (0.45 + Math.random() * 0.15) : (0.02 + Math.random() * 0.13) // lucky: +45%..+60%, normal: +2%..+15%
+        const finalStats = baseStats.map(s => ({ name: s.name, value: Math.round(s.value * (1 + bonusPct)) }))
+        const xpAtCapture = (xpMap && xpMap[p.id]) || 0
+        void api.addCapture(currentUser, {
+          pokemonId: p.id,
+          method: 'pokeball',
+          rate,
+          xpAtCapture,
+          origin: 'capture',
+          isLucky: lucky,
+          variationPct: bonusPct,
+          evolveBonusPct: 0,
+          finalStats,
+        })
+        return arr
+      })
+      setToast({ type: 'success', message: `${p.name} tertangkap!` })
+      setTimeout(() => setToast(null), 2000)
+    } else {
+      setToast({ type: 'error', message: `Gagal menangkap ${p.name}` })
+      setTimeout(() => setToast(null), 2000)
+    }
+  }
+
   return (
     <div className="app">
       {isAuthenticated ? (
@@ -427,7 +514,7 @@ async function handleLogin(u, p) {
           </div>
          
           <Modal open={modalOpen} onClose={() => setModalOpen(false)} pokemon={modalPokemon} onCapture={startCapture} onBattle={startBattle} />
-          <CapturesModal open={capturesOpen} onClose={() => setCapturesOpen(false)} capturedList={captures} onRelease={releaseCapture} pokemonMap={pokemonMap} onEvolve={evolvePokemon} xpMap={xpMap} xpToLevel={xpToLevel} />
+          <CapturesModal open={capturesOpen} onClose={() => setCapturesOpen(false)} capturedList={captures} onRelease={releaseCapture} pokemonMap={pokemonMap} onEvolve={(pid) => evolvePokemon(pid, { setToast, xpMap, currentUser, setPokemon, setCaptures, setXpMap, statBonusMap, setStatBonusMap })} xpMap={xpMap} xpToLevel={xpToLevel} evoInfoMap={evoInfoMap} captureHistory={captureHistory} />
          
           <CaptureOverlay
             open={captureOpen}
@@ -495,7 +582,7 @@ async function getEvolutionInfo(pid) {
   try {
     const species = await fetchJSON(`https://pokeapi.co/api/v2/pokemon-species/${pid}/`)
     const chainUrl = species?.evolution_chain?.url
-    if (!chainUrl) return null
+    if (!chainUrl) return { error: 'no_chain' }
     const chain = await fetchJSON(chainUrl)
     const myName = species?.name
     function findNode(node) {
@@ -508,72 +595,110 @@ async function getEvolutionInfo(pid) {
       return null
     }
     const node = findNode(chain?.chain)
-    if (!node) return null
+    if (!node) return { error: 'no_chain' }
     const next = (node.evolves_to || [])[0]
-    if (!next) return null
+    if (!next) return { error: 'no_next' }
     const details = (next.evolution_details || [])[0] || {}
     const minLevel = details.min_level || null
     const targetName = next.species?.name
-    if (!targetName) return null
+    if (!targetName) return { error: 'no_next' }
     return { targetName, minLevel }
   } catch (e) {
-    return null
+    return { error: 'network' }
   }
 }
 // Evolusi Pokemon jika level memenuhi
-async function evolvePokemon(pid) {
-  try {
-    const info = await getEvolutionInfo(pid)
-    if (!info) {
-      setToast({ type: 'error', message: 'Pokemon ini tidak memiliki evolusi.' })
-      setTimeout(() => setToast(null), 2000)
-      return
-    }
-    const currentXP = (xpMap && xpMap[pid]) || 0
-    const currentLevel = xpToLevel(currentXP)
-    if (info.minLevel && currentLevel < info.minLevel) {
-      setToast({ type: 'error', message: `Level belum memenuhi (butuh Lv ${info.minLevel}).` })
-      setTimeout(() => setToast(null), 2000)
-      return
-    }
-    // Ambil detail pokemon hasil evolusi
-    const evolvedDetail = await fetchJSON(`https://pokeapi.co/api/v2/pokemon/${info.targetName}`)
-    const evolved = {
-      id: evolvedDetail.id,
-      name: evolvedDetail.name,
-      sprite: evolvedDetail.sprites?.other?.['official-artwork']?.front_default || evolvedDetail.sprites?.front_default,
-      types: (evolvedDetail.types || []).map(t => t.type?.name).filter(Boolean),
-      abilities: (evolvedDetail.abilities || []).map(a => a.ability?.name).filter(Boolean),
-      stats: (evolvedDetail.stats || []).map(s => ({ name: s.stat?.name, value: s.base_stat }))
-    }
-    // Upsert ke daftar pokemon supaya sprite/nama tersedia
-    setPokemon(prev => {
-      const map = new Map(prev.map(x => [x.id, x]))
-      map.set(evolved.id, evolved)
-      return Array.from(map.values())
-    })
-    // Update captures: ganti id lama dengan id evolusi
-    setCaptures(prev => {
-      const set = new Set(prev)
-      set.delete(pid)
-      set.add(evolved.id)
-      const arr = Array.from(set)
-      try { localStorage.setItem(capKey(currentUser), JSON.stringify(arr)) } catch {}
-      return arr
-    })
-    // Transfer XP dari id lama ke id baru
-    setXpMap(prev => {
-      const next = { ...(prev || {}) }
-      const carry = next[pid] || 0
-      delete next[pid]
-      next[evolved.id] = (next[evolved.id] || 0) + carry
-      try { localStorage.setItem(xpKey(currentUser), JSON.stringify(next)) } catch {}
-      return next
-    })
-    setToast({ type: 'success', message: `Berhasil evolve ke ${evolved.name}!` })
-    setTimeout(() => setToast(null), 2000)
-  } catch (e) {
-    setToast({ type: 'error', message: 'Gagal melakukan evolusi.' })
-    setTimeout(() => setToast(null), 2000)
-  }
-}
+ async function evolvePokemon(pid, ctx) {
+-  const { setToast, xpMap, currentUser, setPokemon, setCaptures, setXpMap } = ctx || {}
++  const { setToast, xpMap, currentUser, setPokemon, setCaptures, setXpMap, statBonusMap, setStatBonusMap } = ctx || {}
+   try {
+     const info = await getEvolutionInfo(pid)
+     if (!info || info.error) {
+       if (info && info.error === 'network') {
+         setToast({ type: 'error', message: 'Gagal mengambil data evolusi dari PokeAPI. Coba lagi.' })
+       } else {
+         setToast({ type: 'error', message: 'Pokemon ini tidak memiliki evolusi atau data chain tidak ditemukan.' })
+       }
+       setTimeout(() => setToast(null), 2000)
+       return
+     }
+     const currentXP = (xpMap && xpMap[pid]) || 0
+     const currentLevel = xpToLevel(currentXP)
+     if (info.minLevel && currentLevel < info.minLevel) {
+       setToast({ type: 'error', message: `Level belum memenuhi (butuh Lv ${info.minLevel}).` })
+       setTimeout(() => setToast(null), 2000)
+       return
+     }
+     // Ambil detail pokemon sebelum evolusi untuk basis peningkatan
+     const preDetail = await fetchJSON(`https://pokeapi.co/api/v2/pokemon/${pid}`)
+     const preStats = (preDetail.stats || []).map(s => ({ name: s.stat?.name, value: s.base_stat }))
+     const preBonus = (statBonusMap && statBonusMap[pid]) || 0
+     const currentStatsBeforeEvolve = preStats.map(s => ({ name: s.name, value: Math.round(s.value * (1 + preBonus)) }))
+     // Ambil detail pokemon hasil evolusi
+     const evolvedDetail = await fetchJSON(`https://pokeapi.co/api/v2/pokemon/${info.targetName}`)
+     const evolved = {
+       id: evolvedDetail.id,
+       name: evolvedDetail.name,
+       sprite: evolvedDetail.sprites?.other?.['official-artwork']?.front_default || evolvedDetail.sprites?.front_default,
+       types: (evolvedDetail.types || []).map(t => t.type?.name).filter(Boolean),
+       abilities: (evolvedDetail.abilities || []).map(a => a.ability?.name).filter(Boolean),
+       stats: (evolvedDetail.stats || []).map(s => ({ name: s.stat?.name, value: s.base_stat }))
+     }
+     // Upsert ke daftar pokemon supaya sprite/nama tersedia
+     setPokemon(prev => {
+       const map = new Map(prev.map(x => [x.id, x]))
+       map.set(evolved.id, evolved)
+       return Array.from(map.values())
+     })
+     // Update captures: ganti id lama dengan id evolusi
+     setCaptures(prev => {
+       const set = new Set(prev)
+       set.delete(pid)
+       set.add(evolved.id)
+       const arr = Array.from(set)
+       try { localStorage.setItem(capKey(currentUser), JSON.stringify(arr)) } catch {}
+       // sinkronkan ke backend (persist perubahan evolusi)
+       try { void api.applyReward(currentUser, { captureRemove: pid, captureAdd: evolved.id }) } catch {}
+       return arr
+     })
+     // Transfer XP dari id lama ke id baru
+     setXpMap(prev => {
+       const next = { ...(prev || {}) }
+       const carry = next[pid] || 0
+       delete next[pid]
+       next[evolved.id] = (next[evolved.id] || 0) + carry
+       try { localStorage.setItem(xpKey(currentUser), JSON.stringify(next)) } catch {}
+       return next
+     })
+     // Transfer bonus level ke ID evolusi
+     setStatBonusMap(prev => {
+       const next = { ...(prev || {}) }
+       const carryBonus = prev?.[pid] || 0
+       delete next[pid]
+       next[evolved.id] = (next[evolved.id] || 0) + carryBonus
+-       try { localStorage.setItem(`statBonus:${currentUser}`, JSON.stringify(next)) } catch {}
++       try { localStorage.setItem(statBonusKey(currentUser), JSON.stringify(next)) } catch {}
+       return next
+     })
+     // Catat riwayat evolve dengan bonus status acak 40%..72% dari status sebelum evolusi
+     try {
+       const EVOLVE_BONUS_PCT = 0.40 + Math.random() * 0.32 // +40%..+72%
+       const finalStats = (currentStatsBeforeEvolve || []).map(s => ({ name: s.name, value: Math.round(s.value * (1 + EVOLVE_BONUS_PCT)) }))
+       void api.addCapture(currentUser, {
+         pokemonId: evolved.id,
+         method: 'evolve',
+         xpAtCapture: currentXP,
+         origin: 'evolved',
+         isLucky: false,
+         variationPct: 0,
+         evolveBonusPct: EVOLVE_BONUS_PCT,
+         finalStats,
+       })
+     } catch {}
+     setToast({ type: 'success', message: `Berhasil evolve ke ${evolved.name}!` })
+     setTimeout(() => setToast(null), 2000)
+   } catch (e) {
+     setToast({ type: 'error', message: 'Gagal melakukan evolusi.' })
+     setTimeout(() => setToast(null), 2000)
+   }
+ }
