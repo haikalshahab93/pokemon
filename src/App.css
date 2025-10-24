@@ -341,3 +341,86 @@
 .end-arena.defeat { box-shadow: 0 0 0 9999px rgba(0,0,0,0); }
 .end-arena.defeat::before { content: ""; position: absolute; inset: 0; background: radial-gradient(circle at 50% 0%, rgba(255,255,255,0.05), transparent 40%), linear-gradient(180deg, rgba(0,0,0,0.2), transparent 60%); pointer-events: none; }
 .end-arena.defeat::after { content: ""; position: absolute; inset: 0; background: rgba(0,0,0,0.06); pointer-events: none; }
+
+/* Reward items clarity */
+.end-reward {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 12px;
+}
+.reward-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(255,255,255,0.15);
+  background: rgba(255,255,255,0.05);
+}
+.reward-item .ri-label { font-weight: 600; }
+.reward-item .ri-value { margin-left: auto; }
+.reward-item .ri-list { margin-left: auto; text-align: right; }
+.reward-item.coins { background: #2d2212; border-color: #b38b2a; color: #f1c40f; }
+.reward-item.xp { background: #13253a; border-color: #2e86de; color: #70a1ff; }
+.reward-item.item { background: #0e2d1b; border-color: #27ae60; color: #2ecc71; }
+.reward-item.item.none { background: #2f3640; border-color: #636e72; color: #dfe6e9; }
+.reward-item.ach { background: #3b0707; border-color: #c0392b; color: #e74c3c; }
+.reward-item.badge { background: #1f123b; border-color: #8e44ad; color: #9b59b6; }
+.reward-item.weapon { background: #1f1f1f; border-color: #7f8c8d; color: #ecf0f1; }
+.reward-item .ri-value,
+.reward-item .ri-list {
+  margin-left: auto;
+  font-weight: 700;
+}
+.reward-item .ri-icon {
+  font-size: 18px;
+  width: 22px;
+  text-align: center;
+}
+.reward-item .ri-label {
+  flex: 0 0 auto;
+  opacity: 0.85;
+  min-width: 90px;
+}
+.reward-item .ri-value,
+.reward-item .ri-list {
+  margin-left: auto;
+  font-weight: 700;
+}
+/* Variant colors */
+.reward-item.coins {
+  background: rgba(241, 196, 15, 0.12);
+  border-color: rgba(241, 196, 15, 0.45);
+}
+.reward-item.coins .ri-value { color: #f1c40f; }
+
+.reward-item.xp {
+  background: rgba(52, 152, 219, 0.12);
+  border-color: rgba(52, 152, 219, 0.45);
+}
+.reward-item.xp .ri-value { color: #3498db; }
+
+.reward-item.item {
+  background: rgba(46, 204, 113, 0.12);
+  border-color: rgba(46, 204, 113, 0.45);
+}
+.reward-item.item .ri-value { color: #2ecc71; }
+
+.reward-item.item.none {
+  background: rgba(149, 165, 166, 0.15);
+  border-color: rgba(149, 165, 166, 0.5);
+}
+.reward-item.item.none .ri-value { color: #95a5a6; }
+
+.reward-item.ach {
+  background: rgba(231, 76, 60, 0.12);
+  border-color: rgba(231, 76, 60, 0.45);
+}
+.reward-item.ach .ri-list { color: #e74c3c; }
+
+.reward-item.badge {
+  background: rgba(155, 89, 182, 0.12);
+  border-color: rgba(155, 89, 182, 0.45);
+}
+.reward-item.badge .ri-list { color: #9b59b6; }

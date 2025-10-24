@@ -482,39 +482,55 @@ export default function App() {
    }
   // Reward calculation (depends on difficulty, streakWins, pityBonus)
   function calculateRewards(result, metrics) {
-    const diffMul = { Easy: 1.0, Normal: 1.2, Hard: 1.5, Insane: 1.8 }[difficulty] || 1.2
-    const streakMul = 1 + Math.min(0.5, streakWins * 0.1)
-    const perfBonus = (metrics?.turns <= 4 ? 0.1 : 0) + ((metrics?.damageTaken ?? 0) <= 20 ? 0.15 : 0) + ((metrics?.superEffective ?? 0) >= 2 ? 0.1 : 0)
-    let coinsGain, xpGain
-    if (result === 'win') {
-      coinsGain = Math.round((50 + 0.5*(metrics?.damageDealt||0) + 20) * diffMul * streakMul * (1+perfBonus))
-      xpGain = Math.round((100 + 0.8*(metrics?.damageDealt||0) + ((metrics?.superEffective||0)>0?30:0)) * diffMul)
-    } else {
-      coinsGain = Math.round((15 + 0.4*(metrics?.damageDealt||0)) * diffMul)
-      xpGain = Math.round((60 + 0.6*(metrics?.damageDealt||0)) * diffMul)
-    }
-    // Item drop
-    const basePotion = result==='win'?0.20:0.08
-    const baseSuper = result==='win'?0.05:0.02
-    const pityMul = 1 + Math.min(0.5, pityBonus/100)
-    const roll = Math.random()
-    let itemDrop = null
-    if (roll < baseSuper*pityMul) itemDrop = 'Super Potion'; else if (roll < basePotion*pityMul) itemDrop = 'Potion'
-    // Achievements (simple)
-    const newAch = []
-    if (result==='win' && (metrics?.damageTaken ?? 999) <= 20) newAch.push('Perfect Guard')
-    if (result==='win' && (metrics?.turns||0) <= 4) newAch.push('Swift Victory')
-    if ((metrics?.superEffective||0) >= 3) newAch.push('Type Master')
-    if (result==='lose') newAch.push('Keep Fighting')
-    return { coinsGain, xpGain, itemDrop, newAch }
-  }
+     const diffMul = { Easy: 1.0, Normal: 1.2, Hard: 1.5, Insane: 1.8 }[difficulty] || 1.2
+     const streakMul = 1 + Math.min(0.5, streakWins * 0.1)
+     const perfBonus = (metrics?.turns <= 4 ? 0.1 : 0) + ((metrics?.damageTaken ?? 0) <= 20 ? 0.15 : 0) + ((metrics?.superEffective ?? 0) >= 2 ? 0.1 : 0)
+     let coinsGain, xpGain
+     if (result === 'win') {
+       coinsGain = Math.round((50 + 0.5*(metrics?.damageDealt||0) + 20) * diffMul * streakMul * (1+perfBonus))
+       xpGain = Math.round((100 + 0.8*(metrics?.damageDealt||0) + ((metrics?.superEffective||0)>0?30:0)) * diffMul)
+     } else {
+       coinsGain = Math.round((15 + 0.4*(metrics?.damageDealt||0)) * diffMul)
+       xpGain = Math.round((60 + 0.6*(metrics?.damageDealt||0)) * diffMul)
+     }
+     // Item drop (Potion)
+     const basePotion = result==='win'?0.20:0.08
+     const baseSuper = result==='win'?0.05:0.02
+     const pityMul = 1 + Math.min(0.5, pityBonus/100)
+     const roll = Math.random()
+     let itemDrop = null
+     if (roll < baseSuper*pityMul) itemDrop = 'Super Potion'; else if (roll < basePotion*pityMul) itemDrop = 'Potion'
+     // Weapon drop (lebih mudah didapat ketika menang)
+     let weaponDrop = null
+     if (result === 'win') {
+-      const baseWeapon = ({ Easy: 0.008, Normal: 0.010, Hard: 0.015, Insane: 0.020 }[difficulty] || 0.010)
++      const baseWeapon = ({ Easy: 0.25, Normal: 0.30, Hard: 0.35, Insane: 0.40 }[difficulty] || 0.30)
+       const perfMulWeapon = 1 + perfBonus * 0.2 // pengaruh ringan dari performa
+       const streakMulWeapon = 1 + Math.min(0.1, streakWins * 0.01) // bonus kecil dari streak
+       const pityMulWeapon = 1 + Math.min(0.05, pityBonus / 1000) // pengaruh sangat kecil dari pity
+       const weaponChance = baseWeapon * perfMulWeapon * streakMulWeapon * pityMulWeapon
+       if (Math.random() < weaponChance) {
+         const r = Math.random()
+         weaponDrop = r < 0.05 ? 'Crystal Blade' : r < 0.30 ? 'Iron Sword' : 'Wooden Sword'
+       }
+     }
+     // Achievements (simple)
+     const newAch = []
+     if (result==='win' && (metrics?.damageTaken ?? 999) <= 20) newAch.push('Perfect Guard')
+     if (result==='win' && (metrics?.turns||0) <= 4) newAch.push('Swift Victory')
+     if ((metrics?.superEffective||0) >= 3) newAch.push('Type Master')
+     if (result==='lose') newAch.push('Keep Fighting')
+-    return { coinsGain, xpGain, itemDrop, newAch }
++    return { coinsGain, xpGain, itemDrop, weaponDrop, newAch }
+   }
   function handleBattleEnd(payload) {
     const result = typeof payload === 'string' ? payload : payload?.result
     const metrics = typeof payload === 'object' ? payload?.metrics : null
-    const { coinsGain, xpGain, itemDrop, newAch } = calculateRewards(result, metrics || { damageDealt: result==='win'?100:0, damageTaken: result==='lose'?100:0, turns: 0, superEffective: 0 })
-    setCoins(prev => { const next = prev + coinsGain; localStorage.setItem(coinsKey(currentUser), String(next)); return next })
-    // XP per Pokemon (store map by id)
-    const pid = typeof payload === 'object' ? payload?.player?.id : battlePair.player?.id
+-   const { coinsGain, xpGain, itemDrop, newAch } = calculateRewards(result, metrics || { damageDealt: result==='win'?100:0, damageTaken: result==='lose'?100:0, turns: 0, superEffective: 0 })
++   const { coinsGain, xpGain, itemDrop, weaponDrop, newAch } = calculateRewards(result, metrics || { damageDealt: result==='win'?100:0, damageTaken: result==='lose'?100:0, turns: 0, superEffective: 0 })
+     setCoins(prev => { const next = prev + coinsGain; localStorage.setItem(coinsKey(currentUser), String(next)); return next })
+     // XP per Pokemon (store map by id)
+     const pid = typeof payload === 'object' ? payload?.player?.id : battlePair.player?.id
     try {
       const map = JSON.parse(localStorage.getItem(xpKey(currentUser)) || '{}')
       const prevXP = parseInt(map[pid] || '0') || 0
@@ -525,6 +541,9 @@ export default function App() {
     if (itemDrop) {
       setInventory(prev => { const next = [...prev, itemDrop]; localStorage.setItem(invKey(currentUser), JSON.stringify(next)); return next })
     }
++    if (weaponDrop) {
++      setInventory(prev => { const next = [...prev, weaponDrop]; localStorage.setItem(invKey(currentUser), JSON.stringify(next)); return next })
++    }
     // Streak & pity
     let newBadges = []
     if (result === 'win') {
@@ -548,7 +567,7 @@ export default function App() {
     if (newBadges.length) {
       setBadges(prev => { const set = new Set(prev); newBadges.forEach(b => set.add(b)); const arr = Array.from(set); localStorage.setItem(badgeKey(currentUser), JSON.stringify(arr)); return arr })
     }
-    setEndData({ result, metrics, rewards: { coinsGain, xpGain, itemDrop, newAch, newBadges }, opponent: lastOpponent })
+    setEndData({ result, metrics, rewards: { coinsGain, xpGain, itemDrop, weaponDrop, newAch, newBadges }, opponent: lastOpponent })
     setEndOpen(true)
     setToast({ type: result === 'win' ? 'success' : 'error', message: result === 'win' ? `Anda menang! +${coinsGain} coins` : `Anda kalah. +${coinsGain} coins` })
     setTimeout(() => setToast(null), 2000)
@@ -957,11 +976,22 @@ function EndBattleOverlay({ open, data, onClose, onRematch }) {
           <div>Critical hits: {metrics?.critical ?? 0}</div>
         </div>
         <div className="end-reward">
-          <div>Coins +{rewards.coinsGain}</div>
-          <div>XP +{rewards.xpGain}</div>
-          {rewards.itemDrop ? <div>Item: {rewards.itemDrop}</div> : <div>Tidak ada item</div>}
-          {rewards.newAch?.length ? <div>Achievement: {rewards.newAch.join(', ')}</div> : null}
-          {rewards.newBadges?.length ? <div>Badge: {rewards.newBadges.join(', ')}</div> : null}
+          <div className="reward-item coins"><span className="ri-icon" aria-hidden>🪙</span><span className="ri-label">Coins</span><span className="ri-value">+{rewards.coinsGain}</span></div>
+          <div className="reward-item xp"><span className="ri-icon" aria-hidden>⭐</span><span className="ri-label">XP</span><span className="ri-value">+{rewards.xpGain}</span></div>
+          {rewards.itemDrop ? (
+            <div className="reward-item item"><span className="ri-icon" aria-hidden>🎁</span><span className="ri-label">Item</span><span className="ri-value">{rewards.itemDrop}</span></div>
+          ) : (
+            <div className="reward-item item none"><span className="ri-label">Item</span><span className="ri-value">Tidak ada</span></div>
+          )}
+          {rewards.weaponDrop ? (
+            <div className="reward-item weapon"><span className="ri-icon" aria-hidden>🗡️</span><span className="ri-label">Weapon</span><span className="ri-value">{rewards.weaponDrop}</span></div>
+          ) : null}
+          {rewards.newAch?.length ? (
+            <div className="reward-item ach"><span className="ri-icon" aria-hidden>🏆</span><span className="ri-label">Achievement</span><span className="ri-list">{rewards.newAch.join(', ')}</span></div>
+          ) : null}
+          {rewards.newBadges?.length ? (
+            <div className="reward-item badge"><span className="ri-icon" aria-hidden>🎖️</span><span className="ri-label">Badge</span><span className="ri-list">{rewards.newBadges.join(', ')}</span></div>
+          ) : null}
         </div>
         <div className="end-actions">
           <button className="battle-btn" onClick={onClose}>Lanjut</button>
