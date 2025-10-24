@@ -92,6 +92,7 @@ export default function App() {
   const [bagOpen, setBagOpen] = useState(false)
   // Senjata dari server
   const [weapons, setWeapons] = useState([])
+  const [equippedWeapon, setEquippedWeapon] = useState(null)
   const [battleOpen, setBattleOpen] = useState(false)
   const [battlePair, setBattlePair] = useState({ player: null, opponent: null })
   const [captureOpen, setCaptureOpen] = useState(false)
@@ -229,7 +230,35 @@ export default function App() {
           setCaptures(Array.from(new Set(srv)))
           try { localStorage.setItem(capKey(currentUser), JSON.stringify(srv)) } catch {}
         }
-      }).catch(() => {})
+        // Sinkronisasi Bag/Inventory dari server
+        try {
+          const srvCoins = parseInt(u?.coins ?? '0') || 0
+          setCoins(srvCoins)
+          localStorage.setItem(coinsKey(currentUser), String(srvCoins))
+        } catch {}
+        try {
+          const srvInv = Array.isArray(u?.inventoryItems) ? u.inventoryItems : []
+          setInventory(srvInv)
+          localStorage.setItem(invKey(currentUser), JSON.stringify(srvInv))
+        } catch {}
+        try {
+          const srvBadges = Array.isArray(u?.badges) ? u.badges : []
+          setBadges(srvBadges)
+          localStorage.setItem(badgeKey(currentUser), JSON.stringify(srvBadges))
+        } catch {}
+        try {
+          const srvAch = Array.isArray(u?.achievements) ? u.achievements : []
+          setAchievements(srvAch)
+          localStorage.setItem(achKey(currentUser), JSON.stringify(srvAch))
+        } catch {}
+        try {
+          const srvWeapons = Array.isArray(u?.weapons) ? u.weapons : []
+          setWeapons(srvWeapons)
+        } catch {}
+        try {
+          setEquippedWeapon(u?.equippedWeapon || null)
+        } catch {}
+      })
     } catch {}
   }, [currentUser])
 
@@ -420,6 +449,11 @@ export default function App() {
       void api.applyReward(currentUser, payloadReward).then((res) => {
         const u = res?.user
         if (u?.weapons) setWeapons(u.weapons)
+        if (u?.equippedWeapon) setEquippedWeapon(u.equippedWeapon)
+        if (Array.isArray(u?.inventoryItems)) {
+          setInventory(u.inventoryItems)
+          try { localStorage.setItem(invKey(currentUser), JSON.stringify(u.inventoryItems)) } catch {}
+        }
       }).catch((e) => {
         console.warn('Apply reward gagal:', e?.message || e)
       })
@@ -449,6 +483,8 @@ async function handleLogin(u, p) {
     setCurrentUser(u); localStorage.setItem('user', u)
     setIsAuthenticated(true)
     setLoginOpen(false)
+    // sync pengguna setelah login
+    try { const usr = await api.getUser(u); setWeapons(Array.isArray(usr?.weapons) ? usr.weapons : []); setEquippedWeapon(usr?.equippedWeapon || null) } catch {}
     setToast({ type: 'success', message: 'Berhasil login' })
     setTimeout(() => setToast(null), 2000)
   } catch (e) {
@@ -611,6 +647,8 @@ async function handleLogin(u, p) {
             coins={coins}
             inventory={inventory}
             weapons={weapons}
+            equippedWeapon={equippedWeapon}
+            onEquip={handleEquipWeapon}
             badges={badges}
             achievements={achievements}
           />
@@ -620,6 +658,20 @@ async function handleLogin(u, p) {
             open={evolveOpen}
             data={evolveData}
             onClose={() => { setEvolveOpen(false); setEvolveData(null) }}
+          />
+          <BattleOverlay
+            open={battleOpen}
+            player={battlePair.player}
+            opponent={battlePair.opponent}
+            equippedWeapon={equippedWeapon}
+            onClose={() => setBattleOpen(false)}
+            onEnd={(payload) => handleBattleEnd(payload)}
+          />
+          <EndBattleOverlay
+            open={endOpen}
+            data={endData}
+            onClose={() => setEndOpen(false)}
+            onRematch={() => { setEndOpen(false); setBattleOpen(true) }}
           />
         </>
       ) : (
@@ -848,4 +900,19 @@ function EvolutionOverlay({ open, data, onClose }) {
       </div>
     </div>
   )
+}
+
+async function handleEquipWeapon(name) {
+  if (!name || !currentUser) return
+  try {
+    const res = await api.equipWeapon(currentUser, { name })
+    const u = res?.user
+    if (Array.isArray(u?.weapons)) setWeapons(u.weapons)
+    setEquippedWeapon(u?.equippedWeapon || null)
+    setToast({ type: 'success', message: `Equipped ${name}` })
+    setTimeout(() => setToast(null), 1500)
+  } catch (e) {
+    setToast({ type: 'error', message: e?.message || 'Gagal equip' })
+    setTimeout(() => setToast(null), 1500)
+  }
 }

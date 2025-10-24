@@ -1,0 +1,107 @@
+/* Backdrop and layout */
+.end-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(16, 18, 30, 0.55);
+  backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  opacity: 0;
+}
+.end-backdrop.anim-in { animation: fadeIn 180ms ease forwards; }
+.end-backdrop.anim-out { animation: fadeOut 180ms ease forwards; }
+
+.end-arena {
+  width: min(760px, 92vw);
+  background: linear-gradient(180deg, #0b1020 0%, #0e1224 100%);
+  border: 1px solid rgba(124, 58, 237, 0.35);
+  border-radius: 16px;
+  box-shadow: 0 20px 50px rgba(3, 7, 18, 0.55);
+  padding: 22px 24px;
+  color: #e0e7ff;
+  transform: scale(0.98);
+  opacity: 0;
+}
+.end-arena.anim-in { animation: popIn 180ms ease forwards; }
+.end-arena.anim-out { animation: popOut 180ms ease forwards; }
+
+.end-arena.victory { border-color: rgba(99, 102, 241, 0.45); }
+.end-arena.defeat { border-color: rgba(239, 68, 68, 0.45); }
+
+.end-title {
+  margin: 0 0 8px;
+  font-size: 28px;
+  letter-spacing: 0.5px;
+  color: #ffffff;
+}
+
+/* Summary grid */
+.end-summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 16px;
+  margin: 10px 0 16px;
+}
+.sum-item { font-size: 14px; color: #c7d2fe; }
+.sum-item b { color: #fff; }
+
+/* Rewards row */
+.end-reward {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 12px;
+  padding: 12px;
+  background: rgba(99, 102, 241, 0.08);
+  border: 1px solid rgba(99, 102, 241, 0.15);
+  border-radius: 12px;
+  margin-bottom: 16px;
+}
+.reward-item { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+.reward-item .ri-icon { width: 22px; height: 22px; display: inline-flex; }
+.reward-item .ri-label { color: #c7d2fe; }
+.reward-item .ri-value, .reward-item .ri-list { color: #fff; }
+.reward-item.item.none .ri-value { color: #a5b4fc; }
+
+/* Actions */
+.end-actions { display: flex; gap: 10px; justify-content: flex-end; }
+.battle-btn {
+  background: linear-gradient(180deg, #4f46e5, #4338ca);
+  border: none;
+  color: #fff;
+  padding: 10px 14px;
+  border-radius: 10px;
+  cursor: pointer;
+  font-weight: 600;
+  box-shadow: 0 4px 10px rgba(79, 70, 229, 0.35);
+}
+.battle-btn:hover { background: linear-gradient(180deg, #6366f1, #4f46e5); }
+
+/* Defeat haze overlay */
+.defeat-haze {
+  position: fixed;
+  inset: 0;
+  background: radial-gradient(1200px 600px at 50% 20%, rgba(239,68,68,0.25), transparent 70%);
+  pointer-events: none;
+  animation: hazePulse 2.8s ease-in-out infinite;
+}
+
+/* Confetti */
+.confetti-container { position: fixed; inset: 0; pointer-events: none; overflow: hidden; }
+.confetti-piece { position: absolute; top: -10vh; border-radius: 2px; }
+
+/* Animations */
+@keyframes confettiFall {
+  from { transform: translateY(-120vh) rotate(0deg); opacity: 1; }
+  to { transform: translateY(120vh) rotate(720deg); opacity: 0.6; }
+}
+@keyframes hazePulse {
+  0% { opacity: 0.18; }
+  50% { opacity: 0.32; }
+  100% { opacity: 0.18; }
+}
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes fadeOut { from { opacity: 1; } to { opacity: 0; } }
+@keyframes popIn { from { transform: scale(0.98); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+@keyframes popOut { from { transform: scale(1); opacity: 1; } to { transform: scale(0.98); opacity: 0; } }

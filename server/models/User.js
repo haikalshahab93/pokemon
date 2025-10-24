@@ -14,13 +14,13 @@ const UserSchema = new mongoose.Schema({
   passwordHash: { type: String, default: '' },
   coins: { type: Number, default: 0 },
   xpMap: { type: Map, of: Number, default: {} },
-  // simpan daftar pokemon yang ditangkap
-  capturedIds: { type: [Number], default: [] },
   streakWins: { type: Number, default: 0 },
   badges: { type: [String], default: [] },
   achievements: { type: [String], default: [] },
   inventoryItems: { type: [String], default: [] },
   weapons: { type: [WeaponInfoSchema], default: [] },
+  // Senjata yang sedang di-equip (opsional)
+  equippedWeapon: { type: WeaponInfoSchema, required: false },
 }, { timestamps: true })
 
 module.exports = mongoose.model('User', UserSchema)

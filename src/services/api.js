@@ -65,4 +65,11 @@ export const api = {
     if (token) localStorage.setItem('token', token)
     return res
   },
+  async equipWeapon(username, payload) {
+    return request(`/users/${encodeURIComponent(username)}/equip`, {
+      method: 'POST',
+      body: JSON.stringify(payload || {}),
+      requiresAuth: true,
+    })
+  },
 }

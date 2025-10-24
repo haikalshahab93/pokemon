@@ -1,0 +1,248 @@
+/* Bag Modal Styles: floating feel + responsive */
+:root {
+  --bag-bg: rgba(255, 255, 255, 0.75);
+  --bag-border: rgba(255, 255, 255, 0.35);
+  --bag-shadow: 0 10px 30px rgba(0, 0, 0, 0.20);
+  --bag-text: #1c1c1e;
+  --bag-muted: #6b7280;
+  --accent: #3b82f6;
+  --accent-2: #f59e0b;
+  --success: #22c55e;
+  --danger: #ef4444;
+}
+
+:root.dark,
+.dark :root {
+  --bag-bg: rgba(24, 24, 27, 0.7);
+  --bag-border: rgba(255, 255, 255, 0.08);
+  --bag-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+  --bag-text: #e5e7eb;
+  --bag-muted: #9ca3af;
+}
+
+.bag-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: clamp(12px, 3vw, 24px);
+  background: radial-gradient(1200px 60% at 50% 50%, rgba(99, 102, 241, 0.14), transparent 65%)
+              , rgba(0, 0, 0, 0.28);
+  backdrop-filter: blur(6px) saturate(120%);
+}
+
+.bag-modal {
+  position: relative;
+  width: min(920px, calc(100% - 24px));
+  max-height: calc(100% - 24px);
+  border-radius: 18px;
+  background: linear-gradient(180deg, var(--bag-bg), rgba(255, 255, 255, 0.6));
+  border: 1px solid var(--bag-border);
+  box-shadow: var(--bag-shadow);
+  color: var(--bag-text);
+  overflow: hidden;
+  animation: bagModalIn 180ms ease-out;
+}
+
+@keyframes bagModalIn {
+  from { opacity: 0; transform: translateY(8px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.modal-close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  height: 36px;
+  width: 36px;
+  border-radius: 10px;
+  border: 1px solid var(--bag-border);
+  background: rgba(255,255,255,0.6);
+  color: var(--bag-text);
+  box-shadow: 0 4px 14px rgba(0,0,0,0.10);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition: transform 150ms ease, background 150ms ease;
+}
+.modal-close:hover { transform: scale(1.06); background: rgba(255,255,255,0.8); }
+.modal-close:active { transform: scale(0.98); }
+
+.bag-header {
+  position: sticky;
+  top: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 18px 14px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.72), rgba(255,255,255,0.56));
+  border-bottom: 1px solid var(--bag-border);
+  backdrop-filter: blur(3px);
+}
+
+.bag-header h2 {
+  margin: 0;
+  font-size: clamp(18px, 2.6vw, 22px);
+  letter-spacing: 0.3px;
+}
+
+.bag-metrics {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 6px;
+  color: var(--bag-muted);
+}
+
+.bag-content {
+  padding: 16px 18px 20px;
+  overflow: auto;
+  max-height: calc(100% - 56px);
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 18px;
+}
+
+.bag-section h3 {
+  margin: 0 0 10px 0;
+  font-size: clamp(16px, 2.4vw, 18px);
+  color: var(--bag-text);
+}
+
+.bag-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 8px 0 14px;
+}
+
+.input, .select {
+  height: 36px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--bag-border);
+  background: rgba(255,255,255,0.65);
+  color: var(--bag-text);
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.chips li {
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: rgba(99,102,241,0.12);
+  color: var(--bag-text);
+  border: 1px solid var(--bag-border);
+}
+.chips .empty { opacity: 0.7; font-style: italic; }
+
+.weapon-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 14px;
+}
+
+.stat {
+  border-radius: 14px;
+  border: 1px solid var(--bag-border);
+  background: rgba(255,255,255,0.6);
+  box-shadow: 0 6px 18px rgba(0,0,0,0.08);
+  padding: 12px 12px 14px;
+  transition: transform 160ms ease, box-shadow 160ms ease, background 160ms ease;
+}
+.stat:hover { transform: translateY(-2px); box-shadow: 0 10px 24px rgba(0,0,0,0.10); }
+.stat.equipped { outline: 2px solid rgba(34,197,94,0.6); }
+
+.stat-name { display: flex; align-items: center; gap: 8px; }
+.rarity-badge {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  border: 1px solid var(--bag-border);
+  background: rgba(255,255,255,0.7);
+}
+.rarity-badge.common { color: #6b7280; }
+.rarity-badge.rare { color: #3b82f6; }
+.rarity-badge.epic { color: #a855f7; }
+.rarity-badge.legendary { color: #f59e0b; }
+
+.equipped-badge { color: var(--success); font-size: 12px; }
+
+.stat-bar {
+  margin-top: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(0,0,0,0.08);
+  overflow: hidden;
+}
+.stat-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #60a5fa, #34d399);
+}
+
+.stat-row {
+  margin-top: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.stat-value { color: var(--bag-muted); }
+
+.equip-btn {
+  height: 30px;
+  padding: 0 12px;
+  border-radius: 10px;
+  border: 1px solid var(--bag-border);
+  background: rgba(99, 102, 241, 0.16);
+  color: var(--bag-text);
+  cursor: pointer;
+  transition: transform 140ms ease, background 140ms ease;
+}
+.equip-btn:hover { transform: translateY(-1px); background: rgba(99,102,241,0.25); }
+.equip-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+.weapon-effect {
+  margin-top: 8px;
+  font-size: 13px;
+  color: var(--bag-muted);
+}
+
+.empty { color: var(--bag-muted); }
+
+/* Dark tweaks */
+.dark .bag-modal,
+:root.dark .bag-modal {
+  background: linear-gradient(180deg, rgba(36, 36, 40, 0.8), rgba(24, 24, 27, 0.7));
+}
+.dark .modal-close,
+:root.dark .modal-close {
+  background: rgba(36,36,40,0.8);
+}
+
+/* Responsive adjustments */
+@media (max-width: 720px) {
+  .bag-modal { width: calc(100% - 18px); border-radius: 14px; }
+  .bag-content { padding: 12px 14px 16px; }
+  .weapon-stats { grid-template-columns: 1fr; }
+  .bag-controls { flex-direction: column; }
+}
+
+@media (max-width: 420px) {
+  .modal-close { height: 32px; width: 32px; border-radius: 8px; }
+  .bag-header { padding: 12px 14px; }
+  .bag-content { padding: 10px 12px; }
+  .stat { padding: 10px; }
+}

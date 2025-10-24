@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef } from 'react'
+import './CaptureOverlay.css'
 
 export default function CaptureOverlay({ open, pokemon, onClose, onFinalize }) {
   const [stage, setStage] = useState('idle') // idle | throw | shake1 | shake2 | shake3 | result

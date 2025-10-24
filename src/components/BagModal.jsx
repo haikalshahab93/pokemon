@@ -1,11 +1,27 @@
 import { useState } from 'react'
-export default function BagModal({ open, onClose, coins = 0, inventory = [], weapons = [], badges = [], achievements = [] }) {
+import './BagModal.css'
+export default function BagModal({ open, onClose, coins = 0, inventory = [], weapons = [], badges = [], achievements = [], equippedWeapon, onEquip }) {
   if (!open) return null
   // Sorting & filtering state
   const [itemQuery, setItemQuery] = useState('')
   const [weaponQuery, setWeaponQuery] = useState('')
   const [weaponSort, setWeaponSort] = useState('power-desc') // power-asc|power-desc|rarity|name
-  const filteredItems = inventory.filter(it => it.toLowerCase().includes(itemQuery.toLowerCase()))
+  const normItemQuery = itemQuery.toLowerCase()
+  const itemCountMap = new Map()
+  for (const it of inventory) {
+    const name = String(it)
+    if (!name.toLowerCase().includes(normItemQuery)) continue
+    itemCountMap.set(name, (itemCountMap.get(name) || 0) + 1)
+  }
+  const itemStacks = []
+  for (const [name, count] of itemCountMap.entries()) {
+    let remaining = count
+    while (remaining > 0) {
+      const take = Math.min(99, remaining)
+      itemStacks.push({ name, qty: take })
+      remaining -= take
+    }
+  }
   const filteredWeapons = weapons.filter(w => {
     const q = weaponQuery.toLowerCase()
     return (w.name||'').toLowerCase().includes(q) || (w.rarity||'').toLowerCase().includes(q)
@@ -18,8 +34,9 @@ export default function BagModal({ open, onClose, coins = 0, inventory = [], wea
       default: return 0
     }
   })
+  const equippedName = equippedWeapon?.name
   return (
-    <div className="modal-backdrop" onClick={onClose}>
+    <div className="modal-backdrop bag-backdrop" onClick={onClose}>
       <div className="modal bag-modal" onClick={(e) => e.stopPropagation()}>
         <button className="modal-close" onClick={onClose}>✖</button>
         <div className="modal-header bag-header">
@@ -37,7 +54,7 @@ export default function BagModal({ open, onClose, coins = 0, inventory = [], wea
               <input className="input" placeholder="Filter item" value={itemQuery} onChange={(e)=>setItemQuery(e.target.value)} />
             </div>
             <ul className="chips bag-chips">
-              {filteredItems.length ? filteredItems.map((it, idx) => <li key={idx}>{it}</li>) : <li className="empty"><i>Kosong</i></li>}
+              {itemStacks.length ? itemStacks.map((st, idx) => <li key={`${st.name}-${idx}`}>{st.name} × {st.qty}</li>) : <li className="empty"><i>Kosong</i></li>}
             </ul>
           </section>
           <section className="bag-section">
@@ -52,18 +69,30 @@ export default function BagModal({ open, onClose, coins = 0, inventory = [], wea
               </select>
             </div>
             <div className="stats weapon-stats">
-              {filteredWeapons.length ? filteredWeapons.map((w, idx) => (
-                <div className="stat" key={idx}>
-                  <span className="stat-name">
-                    <strong>{w.name}</strong>
-                    <span className={`rarity-badge ${String(w.rarity||'').toLowerCase()}`}>{w.rarity}</span>
-                  </span>
-                  <div className="stat-bar">
-                    <div className="stat-fill" style={{ width: `${Math.min(100, (w.power||0))}%` }} />
+              {filteredWeapons.length ? filteredWeapons.map((w, idx) => {
+                const isEquipped = equippedName && w.name === equippedName
+                return (
+                  <div className={`stat ${isEquipped ? 'equipped' : ''}`} key={idx}>
+                    <span className="stat-name">
+                      <strong>{w.name}</strong>
+                      <span className={`rarity-badge ${String(w.rarity||'').toLowerCase()}`}>{w.rarity}</span>
+                      {isEquipped && <span className="equipped-badge">(Equipped)</span>}
+                    </span>
+                    <div className="stat-bar">
+                      <div className="stat-fill" style={{ width: `${Math.min(100, (w.power||0))}%` }} />
+                    </div>
+                    <div className="stat-row">
+                      <span className="stat-value">Power {w.power||0}</span>
+                      {!isEquipped ? (
+                        <button className="equip-btn" onClick={() => onEquip && onEquip(w.name)}>Equip</button>
+                      ) : (
+                        <button className="equip-btn" disabled>Equipped</button>
+                      )}
+                    </div>
+                    {w.effect && <div className="weapon-effect">{w.effect}</div>}
                   </div>
-                  <span className="stat-value">Power {w.power||0}</span>
-                </div>
-              )) : <div className="empty"><i>Belum punya senjata</i></div>}
+                )
+              }) : <div className="empty"><i>Belum punya senjata</i></div>}
             </div>
           </section>
           <section className="bag-section">

@@ -1,8 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react'
+import './BattleOverlay.css'
 
 function getHPColor(pct) { return pct >= 60 ? '#43a047' : pct >= 30 ? '#f1c40f' : '#e53935' }
 
-export default function BattleOverlay({ open, player, opponent, onClose, onEnd }) {
+export default function BattleOverlay({ open, player, opponent, onClose, onEnd, equippedWeapon }) {
   const [playerHP, setPlayerHP] = useState(100)
   const [enemyHP, setEnemyHP] = useState(100)
   const [turn, setTurn] = useState('player')
@@ -21,6 +22,7 @@ export default function BattleOverlay({ open, player, opponent, onClose, onEnd }
   const [damageTaken, setDamageTaken] = useState(0)
   const [superEffective, setSuperEffective] = useState(0)
   const [critical, setCritical] = useState(0)
+  const weaponPower = Number(equippedWeapon?.power || 0)
 
   useEffect(() => {
     if (!open) return
@@ -50,6 +52,16 @@ export default function BattleOverlay({ open, player, opponent, onClose, onEnd }
     return () => window.removeEventListener('keydown', handler);
   }, [open, turn])
 
+  // Ambil nilai damage Pokemon dari stats
+  function getAtkStat(entity) {
+    const stats = Array.isArray(entity?.stats) ? entity.stats : []
+    const find = (nm) => (stats.find(s => String(s.name).toLowerCase() === nm)?.value)
+    const atk = find('attack')
+    const spa = find('special-attack')
+    const val = Math.max(atk || 0, spa || 0)
+    return val > 0 ? val : 50 // fallback
+  }
+
   const MOVE_DATA = {
     quick: { power: 12, accuracy: 1.0, type: 'normal' },
     thunderbolt: { power: 20, accuracy: 0.9, type: 'electric' },
@@ -77,9 +89,15 @@ export default function BattleOverlay({ open, player, opponent, onClose, onEnd }
     } catch {}
   }
 
-  function typeEffectiveness(typeA, typeB) {
+  function typeEffectiveness(typeA, defenderTypes) {
     const chart = { electric: { water: 2, flying: 2 }, dark: { psychic: 2 }, normal: {} }
-    return chart[typeA]?.[typeB] || 1
+    const defList = Array.isArray(defenderTypes) ? defenderTypes : [defenderTypes]
+    let mul = 1
+    for (const t of defList.filter(Boolean)) {
+      const v = chart[typeA]?.[t] || 1
+      mul = Math.max(mul, v) // ambil multiplier tertinggi jika multi-type
+    }
+    return mul
   }
 
   function playerMove(move) {
@@ -95,9 +113,13 @@ export default function BattleOverlay({ open, player, opponent, onClose, onEnd }
 
     const md = MOVE_DATA[move]
     const hit = Math.random() < md.accuracy
-    const eff = typeEffectiveness(md.type, opponent.type || 'normal')
+    const eff = typeEffectiveness(md.type, opponent.types || (opponent.type || 'normal'))
     const crit = Math.random() < 0.1
-    const dmg = hit ? Math.round(md.power * eff * (crit ? 1.5 : 1)) : 0
+    // Scale damage dengan stats Pokemon
+    const atkStat = getAtkStat(player)
+    const scaledBase = Math.round(md.power * (atkStat / 50)) // 50 = baseline; atk 100 => ~2x
+    const bonus = Math.round(weaponPower * 0.5)
+    const dmg = hit ? Math.round((scaledBase + bonus) * eff * (crit ? 1.5 : 1)) : 0
     if (hit) {
       setEnemyHP(h => Math.max(0, h - dmg))
       setDamageDealt(d => d + dmg)
@@ -127,9 +149,11 @@ export default function BattleOverlay({ open, player, opponent, onClose, onEnd }
     const move = choices[Math.floor(Math.random() * choices.length)]
     const md = MOVE_DATA[move]
     const hit = Math.random() < md.accuracy
-    const eff = typeEffectiveness(md.type, player.type || 'normal')
+    const eff = typeEffectiveness(md.type, player.types || (player.type || 'normal'))
     const crit = Math.random() < 0.05
-    const dmg = hit ? Math.round(md.power * eff * (crit ? 1.4 : 1)) : 0
+    const atkStat = getAtkStat(opponent)
+    const scaledBase = Math.round(md.power * (atkStat / 50))
+    const dmg = hit ? Math.round(scaledBase * eff * (crit ? 1.4 : 1)) : 0
 
     if (hit) {
       setPlayerHP(h => Math.max(0, h - dmg))

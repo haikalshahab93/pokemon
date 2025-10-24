@@ -10,8 +10,14 @@ export default function EvoPage({ pokemonList = [] }) {
   const [showFullChain, setShowFullChain] = React.useState(true)
   const [suggestionsSource, setSuggestionsSource] = React.useState(pokemonList)
   const [selectedInfo, setSelectedInfo] = React.useState(null) // detailed info for first/current species
+  const [typeEff, setTypeEff] = React.useState({ weak: [], resist: [], immune: [] })
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
+  const [loadingCards, setLoadingCards] = React.useState(false)
+  // tambahan: selector bahasa dan cache species raw
+  const [selectedLang, setSelectedLang] = React.useState('en')
+  const [speciesLangs, setSpeciesLangs] = React.useState([])
+  const [selectedSpeciesRaw, setSelectedSpeciesRaw] = React.useState(null)
 
   // TTL cache wrapper
   const fetchCachedJSONWithTTL = async (url, ttlMs = 6 * 60 * 60 * 1000) => {
@@ -86,6 +92,48 @@ export default function EvoPage({ pokemonList = [] }) {
     return null
   }
 
+  const TYPE_ICONS = {
+    normal: '⚪', fire: '🔥', water: '💧', grass: '🍃', electric: '⚡', ice: '❄️', fighting: '🥊', poison: '☠️', ground: '🥾', flying: '🪽', psychic: '🔮', bug: '🐛', rock: '🪨', ghost: '👻', dragon: '🐉', dark: '🌑', steel: '🔩', fairy: '✨'
+  }
+  const getTypeLabel = (t) => `${TYPE_ICONS[t] || ''} ${t}`
+  
+  const statClass = (name) => {
+    switch (name) {
+      case 'hp': return 'hp'
+      case 'attack': return 'attack'
+      case 'defense': return 'defense'
+      case 'special-attack': return 'spa'
+      case 'special-defense': return 'spd'
+      case 'speed': return 'spe'
+      default: return ''
+    }
+  }
+  
+  // compute type effectiveness multipliers using PokeAPI type damage_relations
+  const computeTypeEffectiveness = async (types, fetcher) => {
+    const multipliers = {} // targetType -> multiplier
+    for (const t of types) {
+      const data = await fetcher(`https://pokeapi.co/api/v2/type/${t}`)
+      const dr = data.damage_relations || {}
+      const inc = (list, factor) => {
+        for (const it of (list || [])) {
+          const name = it.name
+          multipliers[name] = (multipliers[name] ?? 1) * factor
+        }
+      }
+      inc(dr.double_damage_from, 2)
+      inc(dr.half_damage_from, 0.5)
+      inc(dr.no_damage_from, 0)
+    }
+    // Normalize: ensure any missing types are 1
+    const allTypes = Object.keys(TYPE_ICONS)
+    for (const tt of allTypes) multipliers[tt] = multipliers[tt] ?? 1
+    const weak = Object.entries(multipliers).filter(([, m]) => m > 1).sort((a,b)=>b[1]-a[1])
+    const resist = Object.entries(multipliers).filter(([, m]) => m > 0 && m < 1).sort((a,b)=>a[1]-b[1])
+    const immune = Object.entries(multipliers).filter(([, m]) => m === 0)
+    return { weak, resist, immune }
+  }
+
   const loadDexInfo = async (name) => {
     try {
       const d = await fetchCachedJSONWithTTL(`https://pokeapi.co/api/v2/pokemon/${name}`)
@@ -99,20 +147,60 @@ export default function EvoPage({ pokemonList = [] }) {
       const habitat = s.habitat?.name || null
       const growth_rate = s.growth_rate?.name || null
       const color = s.color?.name || null
-      const genus = (s.genera || []).find(g => g.language?.name === 'en')?.genus || (s.genera || [])[0]?.genus || null
-      const flavor = (s.flavor_text_entries || []).find(ft => ft.language?.name === 'en')?.flavor_text || null
+
+      // bahasa tersedia
+      const langSet = new Set()
+      ;(s.genera || []).forEach(g => { if (g.language?.name) langSet.add(g.language.name) })
+      ;(s.flavor_text_entries || []).forEach(ft => { if (ft.language?.name) langSet.add(ft.language.name) })
+      const langs = Array.from(langSet)
+      setSpeciesLangs(langs)
+      if (!langs.includes(selectedLang)) setSelectedLang(langs.includes('en') ? 'en' : (langs[0] || 'en'))
+      setSelectedSpeciesRaw(s)
+
+      // genus & flavor sesuai selectedLang (fallback ke en/pertama)
+      const findGenus = (lang) => (s.genera || []).find(g => g.language?.name === lang)?.genus
+      const findFlavor = (lang) => (s.flavor_text_entries || []).find(ft => ft.language?.name === lang)?.flavor_text
+      const genus = findGenus(selectedLang) || findGenus('en') || (s.genera || [])[0]?.genus || null
+      const flavor = findFlavor(selectedLang) || findFlavor('en') || null
+
+      // ringkasan moves: level-up & egg
+      const levelMap = new Map() // name -> min level
+      const eggSet = new Set()
+      for (const mv of (d.moves || [])) {
+        const nameMv = mv.move?.name
+        if (!nameMv) continue
+        for (const det of (mv.version_group_details || [])) {
+          const method = det.move_learn_method?.name
+          if (method === 'level-up') {
+            const lvl = det.level_learned_at ?? 0
+            const prev = levelMap.get(nameMv)
+            if (prev == null || (lvl > 0 && lvl < prev)) levelMap.set(nameMv, lvl)
+          } else if (method === 'egg') {
+            eggSet.add(nameMv)
+          }
+        }
+      }
+      const level_moves = Array.from(levelMap.entries()).map(([nm, lvl]) => ({ name: nm, level: lvl })).sort((a,b) => (a.level || 999) - (b.level || 999))
+      const egg_moves = Array.from(eggSet).sort()
+
       const id = d.id
       const sprite = d.sprites?.other?.['official-artwork']?.front_default || d.sprites?.front_default
-      setSelectedInfo({ name, id, sprite, types, abilities, stats, height, weight, egg_groups, habitat, growth_rate, color, genus, flavor })
+      setSelectedInfo({ name, id, sprite, types, abilities, stats, height, weight, egg_groups, habitat, growth_rate, color, genus, flavor, level_moves, egg_moves })
+      // type effectiveness
+      try {
+        const eff = await computeTypeEffectiveness(types, fetchCachedJSONWithTTL)
+        setTypeEff(eff)
+      } catch {}
     } catch {
       setSelectedInfo(null)
+      setTypeEff({ weak: [], resist: [], immune: [] })
     }
   }
 
   const loadChainFor = async (nameOrId) => {
     if (!nameOrId) return
     const normalized = String(nameOrId).trim().toLowerCase()
-    setLoading(true); setError('')
+    setLoading(true); setError(''); setLoadingCards(true)
     try {
       const species = await fetchCachedJSONWithTTL(`https://pokeapi.co/api/v2/pokemon-species/${normalized}/`)
       const chainUrl = species?.evolution_chain?.url
@@ -142,9 +230,7 @@ export default function EvoPage({ pokemonList = [] }) {
       for (const it of details) map[it.name] = { id: it.id, sprite: it.sprite }
       setSprites(map)
       setLevels(acc)
-      // info panel for the first/current species
       await loadDexInfo(normalized)
-      // sync URL params
       setSearchParams({ q: normalized, full: showFullChain ? '1' : '0' }, { replace: true })
     } catch (e) {
       const msg = e?.message === 'no_chain' ? 'Tidak ada evolution chain.' : (e?.message === 'no_node' ? 'Spesies tidak ditemukan dalam chain.' : 'Gagal memuat data evolusi.')
@@ -154,6 +240,7 @@ export default function EvoPage({ pokemonList = [] }) {
       setSelectedInfo(null)
     } finally {
       setLoading(false)
+      setLoadingCards(false)
     }
   }
 
@@ -173,6 +260,14 @@ export default function EvoPage({ pokemonList = [] }) {
     }
   }, [searchParams])
 
+  // recompute genus/flavor saat bahasa berubah
+  React.useEffect(() => {
+    if (!selectedSpeciesRaw || !selectedInfo) return
+    const genus = (selectedSpeciesRaw.genera || []).find(g => g.language?.name === selectedLang)?.genus || selectedInfo.genus
+    const flavor = (selectedSpeciesRaw.flavor_text_entries || []).find(ft => ft.language?.name === selectedLang)?.flavor_text || selectedInfo.flavor
+    setSelectedInfo(prev => prev ? { ...prev, genus, flavor } : prev)
+  }, [selectedLang, selectedSpeciesRaw])
+
   // Sync URL when toggle changes and reload
   React.useEffect(() => {
     const qParam = (searchParams.get('q') || '').trim().toLowerCase()
@@ -187,7 +282,7 @@ export default function EvoPage({ pokemonList = [] }) {
 
   return (
     <div className="evo-page" style={{ padding: '24px 20px' }}>
-      <div className="evo-page-header" style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+      <div className="evo-page-header">
         <button className="captures-menu" onClick={() => { try { if (window.history.length > 1) navigate(-1); else navigate('/') } catch { navigate('/') } }} title="Kembali">← Back</button>
         <img className="auth-logo" src="/pokeball.svg" alt="Evo" />
         <div>
@@ -195,7 +290,7 @@ export default function EvoPage({ pokemonList = [] }) {
           <div style={{ fontSize: '13px', opacity: 0.8 }}>Telusuri tahapan dari awal hingga evolusi terakhir, termasuk syarat level.</div>
         </div>
       </div>
-      <div className="evo-controls" style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12 }}>
+      <div className="evo-controls">
         <div className="field" style={{ flex: 1 }}>
           <input
             value={query}
@@ -225,13 +320,20 @@ export default function EvoPage({ pokemonList = [] }) {
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
               <h3 style={{ margin: 0, textTransform: 'capitalize' }}>{selectedInfo.name}</h3>
               <span style={{ opacity: 0.8 }}>#{selectedInfo.id}</span>
+              {speciesLangs.length > 0 && (
+                <div style={{ marginLeft: 'auto' }}>
+                  <select value={selectedLang} onChange={e => setSelectedLang(e.target.value)} style={{ padding: '4px 8px', fontSize: 12 }}>
+                    {speciesLangs.map(l => (<option key={l} value={l}>{l}</option>))}
+                  </select>
+                </div>
+              )}
             </div>
             {selectedInfo.genus && <div style={{ fontSize: 12, opacity: 0.8, marginTop: 2 }}>{selectedInfo.genus}</div>}
             {selectedInfo.flavor && <div style={{ fontSize: 12, opacity: 0.9, marginTop: 6, whiteSpace: 'pre-wrap' }}>{selectedInfo.flavor.replace(/\s+/g, ' ')}</div>}
 
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
               {(selectedInfo.types || []).map(t => (
-                <span key={t} className={`type-chip type-${t}`}>{t}</span>
+                <span key={t} className={`type-chip type-${t}`}>{getTypeLabel(t)}</span>
               ))}
             </div>
 
@@ -262,20 +364,83 @@ export default function EvoPage({ pokemonList = [] }) {
               </div>
             )}
 
+            {(selectedInfo.level_moves || []).length > 0 && (
+              <div style={{ marginTop: 10 }}>
+                <div style={{ fontWeight: 600, fontSize: 13 }}>Level-up Moves (ringkas)</div>
+                <div className="chips" style={{ gap: 6, flexWrap: 'wrap' }}>
+                  {(selectedInfo.level_moves || []).slice(0, 10).map(mv => (
+                    <span key={mv.name} className="chip" title={`Lv ${mv.level || '-'}`} style={{ fontSize: 12, textTransform: 'none' }}>
+                      {mv.name} {mv.level ? `(Lv ${mv.level})` : ''}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {(selectedInfo.egg_moves || []).length > 0 && (
+              <div style={{ marginTop: 8 }}>
+                <div style={{ fontSize: 12, opacity: 0.8 }}>Egg Moves</div>
+                <div className="chips" style={{ gap: 6, flexWrap: 'wrap' }}>
+                  {(selectedInfo.egg_moves || []).slice(0, 12).map(name => (
+                    <span key={name} className="chip" style={{ fontSize: 12, textTransform: 'none' }}>{name}</span>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {(selectedInfo.stats || []).length > 0 && (
               <div style={{ marginTop: 10 }}>
                 <div style={{ fontWeight: 600, fontSize: 13 }}>Base Stats</div>
-                <div className="stats">
-                  {selectedInfo.stats.map(st => (
-                    <div className="stat" key={`${st.name}-${st.value}`}>
-                      <span className="stat-name">{st.name}</span>
-                      <div className="stat-bar">
-                        <div className="stat-fill" style={{ width: `${Math.min(100, st.value)}%` }} />
+                {(() => { const max = Math.max(...(selectedInfo.stats || []).map(st => st.value), 1); return (
+                  <div className="stats">
+                    {selectedInfo.stats.map(st => (
+                      <div className="stat" key={`${st.name}-${st.value}`}>
+                        <span className="stat-name">{st.name}</span>
+                        <div className="stat-bar">
+                          <div className={`stat-fill ${statClass(st.name)}`} style={{ width: `${Math.round((st.value / max) * 100)}%` }} />
+                        </div>
+                        <span className="stat-value">{st.value}</span>
                       </div>
-                      <span className="stat-value">{st.value}</span>
+                    ))}
+                  </div>
+                ) })()}
+              </div>
+            )}
+
+            {/* Type effectiveness */}
+            {typeEff && ((typeEff.weak.length + typeEff.resist.length + typeEff.immune.length) > 0) && (
+              <div style={{ marginTop: 10 }}>
+                <div style={{ fontWeight: 600, fontSize: 13 }}>Type Effectiveness</div>
+                {typeEff.weak.length > 0 && (
+                  <div style={{ marginTop: 6 }}>
+                    <div style={{ fontSize: 12, opacity: 0.8 }}>Weakness</div>
+                    <div className="chips" style={{ gap: 6 }}>
+                      {typeEff.weak.slice(0, 8).map(([tt, m]) => (
+                        <span key={`w-${tt}`} className={`chip type-chip type-${tt}`} title={`x${m}`}>{getTypeLabel(tt)} x{m}</span>
+                      ))}
                     </div>
-                  ))}
-                </div>
+                  </div>
+                )}
+                {typeEff.resist.length > 0 && (
+                  <div style={{ marginTop: 6 }}>
+                    <div style={{ fontSize: 12, opacity: 0.8 }}>Resistance</div>
+                    <div className="chips" style={{ gap: 6 }}>
+                      {typeEff.resist.slice(0, 8).map(([tt, m]) => (
+                        <span key={`r-${tt}`} className={`chip type-chip type-${tt}`} title={`x${m}`}>{getTypeLabel(tt)} x{m}</span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {typeEff.immune.length > 0 && (
+                  <div style={{ marginTop: 6 }}>
+                    <div style={{ fontSize: 12, opacity: 0.8 }}>Immunity</div>
+                    <div className="chips" style={{ gap: 6 }}>
+                      {typeEff.immune.slice(0, 8).map(([tt]) => (
+                        <span key={`i-${tt}`} className={`chip type-chip type-${tt}`} title="x0">{getTypeLabel(tt)} x0</span>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -292,7 +457,18 @@ export default function EvoPage({ pokemonList = [] }) {
 
       {error && <div className="error" style={{ marginTop: 8 }}>{error}</div>}
 
-      {!error && levels.length > 0 && (
+      {loadingCards ? (
+        <div className="evo-stages" style={{ marginTop: 12 }}>
+          <div className="evo-stage">
+            <div className="stage-title">Memuat Tahapan…</div>
+            <div className="stage-list skeletons">
+              <div className="skeleton" />
+              <div className="skeleton" />
+              <div className="skeleton" />
+            </div>
+          </div>
+        </div>
+      ) : (!error && levels.length > 0 && (
         <div className="evo-stages">
           {levels.map((stage, idx) => (
             <div className="evo-stage" key={`stage-${idx}`}>
@@ -329,7 +505,7 @@ export default function EvoPage({ pokemonList = [] }) {
             </div>
           ))}
         </div>
-      )}
+      ))}
     </div>
   )
 }

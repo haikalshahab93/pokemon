@@ -167,8 +167,31 @@ app.post('/users/:username/reward', async (req, res) => {
     if (itemDrop) user.inventoryItems.push(itemDrop)
     // weapon
     if (weaponDrop) {
-      const base = await Weapon.findOne({ name: weaponDrop })
-      user.weapons.push({ name: weaponDrop, rarity: base?.rarity || 'common', power: base?.power || 0, effect: base?.effect || '', obtainedAt: new Date() })
+      // Enforce max 20 weapons in bag
+      if ((user.weapons || []).length >= 20) {
+        // skip adding new weapon if capacity reached
+      } else {
+        const base = await Weapon.findOne({ name: weaponDrop })
+        let final = { name: weaponDrop, rarity: base?.rarity || 'common', power: base?.power, effect: base?.effect || '', obtainedAt: new Date() }
+        if (final.power === undefined || final.power === null) {
+          const defaults = {
+            'Wooden Sword': { rarity: 'common', power: 20, effect: 'Simple blade' },
+            'Iron Sword': { rarity: 'uncommon', power: 40, effect: 'Solid strike' },
+            'Crystal Blade': { rarity: 'rare', power: 70, effect: 'Sharp and mystical' },
+            'Flame Saber': { rarity: 'rare', power: 65, effect: 'Burn chance' },
+            'Thunder Pike': { rarity: 'rare', power: 60, effect: 'Shock chance' },
+            'Aqua Trident': { rarity: 'uncommon', power: 45, effect: 'Splash' },
+            'Shadow Dagger': { rarity: 'epic', power: 80, effect: 'Bleed' },
+            'Wind Bow': { rarity: 'uncommon', power: 42, effect: 'Piercing' },
+            'Earth Hammer': { rarity: 'rare', power: 68, effect: 'Stun' },
+            'Light Staff': { rarity: 'epic', power: 85, effect: 'Heal burst' }
+          }
+          const d = defaults[weaponDrop]
+          if (d) { final.rarity = d.rarity; final.power = d.power; final.effect = d.effect }
+          else { final.power = Math.floor(20 + Math.random() * 60) }
+        }
+        user.weapons.push(final)
+      }
     }
     // badges & achievements
     for (const b of (newBadges || [])) if (!user.badges.includes(b)) user.badges.push(b)
@@ -191,10 +214,72 @@ app.post('/users/:username/reward', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }) }
 })
 
+// Endpoint: equip weapon untuk user
+app.post('/users/:username/equip', async (req, res) => {
+  try {
+    const { username } = req.params
+    const { name } = req.body || {}
+    if (!name) return res.status(400).json({ error: 'nama senjata diperlukan' })
+    let user = await User.findOne({ username })
+    if (!user) user = await User.create({ username })
+    // jika user sudah terdaftar (memiliki passwordHash), maka wajib token dan harus cocok dengan username
+    if (user.passwordHash) {
+      const header = req.headers.authorization || ''
+      const m = header.match(/^Bearer\s+(.+)$/)
+      if (!m) return res.status(401).json({ error: 'unauthorized' })
+      try {
+        const payload = jwt.verify(m[1], JWT_SECRET)
+        if (payload?.username !== username) return res.status(403).json({ error: 'forbidden' })
+      } catch (e) { return res.status(401).json({ error: 'invalid token' }) }
+    }
+    // cari detail weapon dari koleksi Weapon
+    const base = await Weapon.findOne({ name })
+    let final = { name, rarity: base?.rarity || 'common', power: base?.power, effect: base?.effect || '' }
+    if (final.power === undefined || final.power === null) {
+      const defaults = {
+        'Wooden Sword': { rarity: 'common', power: 20, effect: 'Simple blade' },
+        'Iron Sword': { rarity: 'uncommon', power: 40, effect: 'Solid strike' },
+        'Crystal Blade': { rarity: 'rare', power: 70, effect: 'Sharp and mystical' },
+        'Flame Saber': { rarity: 'rare', power: 65, effect: 'Burn chance' },
+        'Thunder Pike': { rarity: 'rare', power: 60, effect: 'Shock chance' },
+        'Aqua Trident': { rarity: 'uncommon', power: 45, effect: 'Splash' },
+        'Shadow Dagger': { rarity: 'epic', power: 80, effect: 'Bleed' },
+        'Wind Bow': { rarity: 'uncommon', power: 42, effect: 'Piercing' },
+        'Earth Hammer': { rarity: 'rare', power: 68, effect: 'Stun' },
+        'Light Staff': { rarity: 'epic', power: 85, effect: 'Heal burst' }
+      }
+      const d = defaults[name]
+      if (d) { final.rarity = d.rarity; final.power = d.power; final.effect = d.effect }
+      else { final.power = Math.floor(20 + Math.random() * 60) }
+    }
+    user.equippedWeapon = final
+    await user.save()
+    res.json({ ok: true, user })
+  } catch (e) {
+    res.status(500).json({ error: e.message })
+  }
+})
+
 // Basic weapon list
 app.get('/weapons', async (req, res) => {
   try {
-    const weapons = await Weapon.find().limit(100)
+    let weapons = await Weapon.find().limit(100)
+    if (!weapons.length) {
+      const seed = [
+        { name: 'Wooden Sword', rarity: 'common', power: 20, effect: 'Simple blade' },
+        { name: 'Iron Sword', rarity: 'uncommon', power: 40, effect: 'Solid strike' },
+        { name: 'Crystal Blade', rarity: 'rare', power: 70, effect: 'Sharp and mystical' },
+        { name: 'Flame Saber', rarity: 'rare', power: 65, effect: 'Burn chance' },
+        { name: 'Thunder Pike', rarity: 'rare', power: 60, effect: 'Shock chance' },
+        { name: 'Aqua Trident', rarity: 'uncommon', power: 45, effect: 'Splash' },
+        { name: 'Shadow Dagger', rarity: 'epic', power: 80, effect: 'Bleed' },
+        { name: 'Wind Bow', rarity: 'uncommon', power: 42, effect: 'Piercing' },
+        { name: 'Earth Hammer', rarity: 'rare', power: 68, effect: 'Stun' },
+        { name: 'Light Staff', rarity: 'epic', power: 85, effect: 'Heal burst' }
+      ]
+      try { await Weapon.insertMany(seed, { ordered: false }) } catch {}
+      weapons = await Weapon.find().limit(100)
+    }
     res.json(weapons)
   } catch (e) { res.status(500).json({ error: e.message }) }
 })
