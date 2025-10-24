@@ -1069,3 +1069,39 @@
 }
 .evolve-info h3 { margin: 0 0 6px; }
 .evolve-info p { margin: 0; opacity: 0.75; }
+
+/* Evo page styles */
+.evo-stages { display: grid; grid-template-columns: 1fr; gap: 16px; }
+.evo-stage { border: 1px dashed var(--border); border-radius: 12px; padding: 12px; background: var(--card); }
+.stage-title { font-weight: 600; margin-bottom: 8px; }
+.stage-list { display: flex; gap: 12px; flex-wrap: wrap; }
+.evo-card { width: 160px; background: var(--card-bg); border: 1px solid var(--border); border-radius: 12px; padding: 10px; display: flex; flex-direction: column; align-items: center; cursor: pointer; transition: transform .15s ease, box-shadow .15s ease; }
+.evo-card:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,0.15); }
+.evo-art img { width: 120px; height: 120px; object-fit: contain; }
+.evo-art.placeholder { width: 120px; height: 120px; display: grid; place-items: center; background: var(--muted); border-radius: 12px; color: var(--text-muted); }
+.evo-name { text-transform: capitalize; font-weight: 600; margin-top: 6px; }
+.evo-reqs { font-size: 12px; color: var(--text-muted); text-align: center; margin-top: 4px; }
+
+/* Type chip colors for EvoPage */
+.type-chip.type-fire { background: #ffebe6; border: 1px solid #f69076; color: inherit; }
+.type-chip.type-water { background: #e6f0ff; border: 1px solid #76a5f6; color: inherit; }
+.type-chip.type-grass { background: #e8f5e9; border: 1px solid #81c784; color: inherit; }
+.type-chip.type-electric { background: #fff8e1; border: 1px solid #ffd54f; color: inherit; }
+.type-chip.type-ice { background: #e0f7fa; border: 1px solid #80deea; color: inherit; }
+.type-chip.type-fighting { background: #fbe9e7; border: 1px solid #ff8a65; color: inherit; }
+.type-chip.type-poison { background: #f3e5f5; border: 1px solid #ba68c8; color: inherit; }
+.type-chip.type-ground { background: #efebe9; border: 1px solid #a1887f; color: inherit; }
+.type-chip.type-flying { background: #e3f2fd; border: 1px solid #90caf9; color: inherit; }
+.type-chip.type-psychic { background: #fce4ec; border: 1px solid #f48fb1; color: inherit; }
+.type-chip.type-bug { background: #f1f8e9; border: 1px solid #aed581; color: inherit; }
+.type-chip.type-rock { background: #ede7f6; border: 1px solid #9575cd; color: inherit; }
+.type-chip.type-ghost { background: #ede7f6; border: 1px solid #9575cd; color: inherit; }
+.type-chip.type-dragon { background: #e3f2fd; border: 1px solid #64b5f6; color: inherit; }
+.type-chip.type-dark { background: #eceff1; border: 1px solid #78909c; color: inherit; }
+.type-chip.type-steel { background: #eceff1; border: 1px solid #90a4ae; color: inherit; }
+.type-chip.type-fairy { background: #fce4ec; border: 1px solid #f48fb1; color: inherit; }
+
+@media (max-width: 600px) {
+  .evo-card { width: 48%; }
+  .evo-art img, .evo-art.placeholder { width: 100%; height: auto; aspect-ratio: 1 / 1; }
+}
