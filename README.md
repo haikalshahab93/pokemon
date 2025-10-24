@@ -40,6 +40,10 @@ Cara Bermain
 6) Melihat Tangkapan & Koleksi
 - Buka Captures dari Header untuk melihat Pokémon yang sudah kamu tangkap.
 
+7) Panduan Evolusi (/evo)
+- Klik tombol “Evo” di Header untuk membuka halaman penuh evolusi.
+- Cari Pokémon, lihat rantai evolusi penuh atau mulai dari tahap tertentu, dan cek syarat evolusi (min_level, item, waktu) beserta sprite.
+
 Tips
 
 - Jika grid kosong, pastikan pencarian kosong, tipe disetel ke "All", dan matikan filter Favorites/Captured.

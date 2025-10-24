@@ -10,7 +10,7 @@ import CapturesModal from './components/CapturesModal'
 import CaptureOverlay from './components/CaptureOverlay'
 import LoginModal from './components/LoginModal'
 import BagModal from './components/BagModal'
-import EvoModal from './components/EvoModal'
+// import EvoModal from './components/EvoModal'
 
 // Helper to fetch JSON safely
 async function fetchJSON(url) {
@@ -103,7 +103,7 @@ export default function App() {
   const [evolveOpen, setEvolveOpen] = useState(false)
   const [evolveData, setEvolveData] = useState(null) // { from: {name, sprite}, to: {name, sprite} }
   // Evo guide modal state
-  const [evoOpen, setEvoOpen] = useState(false)
+  // const [evoOpen, setEvoOpen] = useState(false)
   const [xpMap, setXpMap] = useState(() => {
     try { return JSON.parse(localStorage.getItem(xpKey(currentUser)) || '{}') } catch { return {} }
   })
@@ -547,7 +547,7 @@ async function handleLogin(u, p) {
             onOpenCaptures={() => setCapturesOpen(true)}
             onOpenLogin={() => setLoginOpen(true)}
             onOpenBag={() => setBagOpen(true)}
-            onOpenEvo={() => setEvoOpen(true)}
+            // onOpenEvo={() => setEvoOpen(true)}
             isAuthenticated={isAuthenticated}
             onLogout={() => handleLogout('manual')}
           />
