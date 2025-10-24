@@ -146,3 +146,28 @@ Catatan
 
 - Weapon yang didapat otomatis masuk ke Inventory user.
 - Jika tidak drop, bagian Weapon tidak ditampilkan.
+
+## Sistem Level & Evolusi
+
+Sistem level dan evolusi disederhanakan agar mudah dipahami dan dimainkan, berikut detailnya:
+
+- Level dari XP:
+  - Rumus: Level = floor(XP / 150) + 1 (minimal 1).
+  - XP didapat dari pertarungan dan disimpan per-Pokémon per-user.
+  - XP kemenangan lebih besar daripada XP kekalahan. Lihat bagian “Sistem Hadiah (Detail)” untuk gambaran perhitungannya.
+- Cara Evolusi:
+  - Buka menu “Tangkapan Saya”, cari Pokémon yang ingin di-evolve, tekan tombol “Evolve”.
+  - Sistem akan membaca rantai evolusi dari PokeAPI. Jika evolusi berikutnya memiliki syarat level (min_level), maka kamu harus mencapai level tersebut.
+  - Jika evolusi tidak memiliki syarat level (min_level tidak ada), evolusi diizinkan langsung dalam sistem ini.
+  - Catatan: Syarat evolusi khusus seperti item/trade/happiness tidak diterapkan (disederhanakan), jadi hanya min_level yang dipertimbangkan.
+- Transfer XP & Pembaruan Koleksi:
+  - Setelah evolusi, XP dari Pokémon lama ditransfer ke Pokémon hasil evolusi.
+  - Daftar tangkapan diperbarui: ID lama diganti dengan ID evolusi (sprite, nama, dan tipe akan di-upsert agar tampil di grid).
+- Contoh Cepat:
+  - Jika kamu memiliki 300 XP, maka Level = floor(300/150)+1 = 3.
+  - Jika evolusi target butuh min_level = 16, maka belum bisa evolve. Tingkatkan XP melalui pertarungan hingga Level ≥ 16, lalu tekan “Evolve” lagi.
+
+Tips Evolusi
+
+- Bertarung secara konsisten untuk mengumpulkan XP. Kombinasi damage, super-effective, dan difficulty membantu mempercepat XP.
+- Tidak semua Pokémon punya evolusi. Jika sistem tidak menemukan evolusi di chain PokeAPI, akan ditampilkan pesan bahwa Pokémon ini tidak memiliki evolusi.

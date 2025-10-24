@@ -1,3 +1,21 @@
+/* Design tokens for consistent spacing/colors */
+:root {
+  --primary: #1976d2;
+  --primary-600: #1565c0;
+  --border: #3a3a3a; /* default (dark) border */
+  --card: #2b2b2b;   /* default (dark) surface */
+  --text: rgba(255, 255, 255, 0.87);
+  --muted: #888;
+  --space-8: 8px;
+  --space-12: 12px;
+  --space-16: 16px;
+  --radius-8: 8px;
+  --radius-10: 10px;
+  --radius-12: 12px;
+  --radius-16: 16px;
+}
+
+/* Base root styles */
 :root {
   font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
   line-height: 1.5;
@@ -54,10 +72,19 @@ button:focus-visible {
   outline: 4px auto -webkit-focus-ring-color;
 }
 
+/* Light theme overrides */
 @media (prefers-color-scheme: light) {
   :root {
     color: #213547;
     background-color: #ffffff;
+
+    /* tokens override for light */
+    --text: #213547;
+    --card: #ffffff;
+    --border: #e0e0e0;
+    --primary: #1976d2;
+    --primary-600: #1565c0;
+    --muted: #777;
   }
   a:hover {
     color: #747bff;
