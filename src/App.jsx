@@ -10,7 +10,6 @@ import CapturesModal from './components/CapturesModal'
 import CaptureOverlay from './components/CaptureOverlay'
 import LoginModal from './components/LoginModal'
 import BagModal from './components/BagModal'
-// import EvoModal from './components/EvoModal'
 
 // Helper to fetch JSON safely
 async function fetchJSON(url) {

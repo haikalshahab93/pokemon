@@ -1,4 +1,5 @@
 import React from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 
 export default function EvoPage({ pokemonList = [] }) {
   const [query, setQuery] = React.useState('')
@@ -8,20 +9,27 @@ export default function EvoPage({ pokemonList = [] }) {
   const [sprites, setSprites] = React.useState({}) // name -> { id, sprite }
   const [showFullChain, setShowFullChain] = React.useState(true)
   const [suggestionsSource, setSuggestionsSource] = React.useState(pokemonList)
+  const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
 
+  // If no external list provided, fetch a small list for suggestions (with caching)
   React.useEffect(() => {
-    // If no external list provided, fetch a small list for suggestions
     if (!pokemonList || pokemonList.length === 0) {
       (async () => {
         try {
-          const res = await fetch('https://pokeapi.co/api/v2/pokemon?limit=120&offset=0')
-          const json = await res.json()
+          const cached = (() => { try { const s = sessionStorage.getItem('evo_suggestions'); return s ? JSON.parse(s) : null } catch { return null } })()
+          if (cached && Array.isArray(cached) && cached.length > 0) {
+            setSuggestionsSource(cached)
+            return
+          }
+          const json = await fetchCachedJSON('https://pokeapi.co/api/v2/pokemon?limit=120&offset=0')
           const arr = (json.results || []).map((r, idx) => {
             const idMatch = r.url.match(/\/pokemon\/(\d+)\//)
             const id = idMatch ? Number(idMatch[1]) : idx + 1
             return { id, name: r.name }
           })
           setSuggestionsSource(arr)
+          try { sessionStorage.setItem('evo_suggestions', JSON.stringify(arr)) } catch {}
         } catch {
           setSuggestionsSource([])
         }
@@ -64,14 +72,32 @@ export default function EvoPage({ pokemonList = [] }) {
     return null
   }
 
+  // Cached JSON fetcher for PokeAPI responses
+  const fetchCachedJSON = async (url) => {
+    const key = `evo_cache:${url}`
+    try {
+      const s = sessionStorage.getItem(key)
+      if (s) {
+        const parsed = JSON.parse(s)
+        if (parsed) return parsed
+      }
+    } catch {}
+    const res = await fetch(url)
+    if (!res.ok) throw new Error('network')
+    const json = await res.json()
+    try { sessionStorage.setItem(key, JSON.stringify(json)) } catch {}
+    return json
+  }
+
   const loadChainFor = async (nameOrId) => {
     if (!nameOrId) return
+    const normalized = String(nameOrId).trim().toLowerCase()
     setLoading(true); setError('')
     try {
-      const species = await fetchJSON(`https://pokeapi.co/api/v2/pokemon-species/${nameOrId}/`)
+      const species = await fetchCachedJSON(`https://pokeapi.co/api/v2/pokemon-species/${normalized}/`)
       const chainUrl = species?.evolution_chain?.url
       if (!chainUrl) throw new Error('no_chain')
-      const chain = await fetchJSON(chainUrl)
+      const chain = await fetchCachedJSON(chainUrl)
       const base = chain?.chain
       if (!base) throw new Error('no_chain')
       const acc = []
@@ -82,11 +108,10 @@ export default function EvoPage({ pokemonList = [] }) {
         if (!node) throw new Error('no_node')
         traverseChain(node, 0, acc, null)
       }
-      // Fetch sprites for each name
       const names = Array.from(new Set(acc.flat().map(x => x.name).filter(Boolean)))
       const details = await Promise.all(names.map(async (nm) => {
         try {
-          const d = await fetchJSON(`https://pokeapi.co/api/v2/pokemon/${nm}`)
+          const d = await fetchCachedJSON(`https://pokeapi.co/api/v2/pokemon/${nm}`)
           const sprite = d.sprites?.other?.['official-artwork']?.front_default || d.sprites?.front_default
           return { name: nm, id: d.id, sprite }
         } catch {
@@ -97,6 +122,8 @@ export default function EvoPage({ pokemonList = [] }) {
       for (const it of details) map[it.name] = { id: it.id, sprite: it.sprite }
       setSprites(map)
       setLevels(acc)
+      // sync URL params
+      setSearchParams({ q: normalized, full: showFullChain ? '1' : '0' }, { replace: true })
     } catch (e) {
       const msg = e?.message === 'no_chain' ? 'Tidak ada evolution chain.' : (e?.message === 'no_node' ? 'Spesies tidak ditemukan dalam chain.' : 'Gagal memuat data evolusi.')
       setError(msg)
@@ -107,9 +134,26 @@ export default function EvoPage({ pokemonList = [] }) {
     }
   }
 
+  // Read query params and preload if present
+  React.useEffect(() => {
+    const qParam = (searchParams.get('q') || '').trim().toLowerCase()
+    const fullParam = searchParams.get('full')
+    if (fullParam != null) {
+      const full = fullParam === '1' || fullParam === 'true'
+      setShowFullChain(full)
+    }
+    if (qParam) {
+      setQuery(qParam)
+      if (!loading && (!levels || levels.length === 0)) {
+        loadChainFor(qParam)
+      }
+    }
+  }, [searchParams])
+
   return (
     <div className="evo-page" style={{ padding: '24px 20px' }}>
       <div className="evo-page-header" style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+        <button className="captures-menu" onClick={() => { try { if (window.history.length > 1) navigate(-1); else navigate('/') } catch { navigate('/') } }} title="Kembali">← Back</button>
         <img className="auth-logo" src="/pokeball.svg" alt="Evo" />
         <div>
           <h2 style={{ margin: 0 }}>Panduan Evolusi</h2>
@@ -129,13 +173,13 @@ export default function EvoPage({ pokemonList = [] }) {
           <input type="checkbox" checked={showFullChain} onChange={(e) => setShowFullChain(e.target.checked)} />
           Full chain
         </label>
-        <button className="captures-menu" disabled={!query} onClick={() => loadChainFor(query.trim().toLowerCase())}>{loading ? 'Memuat…' : 'Lihat Evo'}</button>
+        <button className="captures-menu" disabled={!query} onClick={() => { const q = query.trim().toLowerCase(); if (!q) return; setSearchParams({ q, full: showFullChain ? '1' : '0' }); loadChainFor(q); }}>{loading ? 'Memuat…' : 'Lihat Evo'}</button>
       </div>
 
       {suggestions && suggestions.length > 0 && (
         <div className="chips evo-suggest" style={{ marginBottom: 12 }}>
           {suggestions.map(p => (
-            <button key={p.id} className="chip" onClick={() => { setQuery(p.name); loadChainFor(p.name) }} title={`Pilih ${p.name}`}>{p.name}</button>
+            <button key={p.id} className="chip" onClick={() => { setQuery(p.name); setSearchParams({ q: p.name, full: showFullChain ? '1' : '0' }); loadChainFor(p.name) }} title={`Pilih ${p.name}`}>{p.name}</button>
           ))}
         </div>
       )}
