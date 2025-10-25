@@ -97,6 +97,14 @@ export default function App() {
   const [battlePair, setBattlePair] = useState({ player: null, opponent: null })
   const [captureOpen, setCaptureOpen] = useState(false)
   const [captureTarget, setCaptureTarget] = useState(null)
+  // Global setting: animasi UI
+  const [animationsEnabled, setAnimationsEnabled] = useState(() => {
+    try { const v = localStorage.getItem('animationsEnabled'); return v == null ? true : JSON.parse(v) } catch { return true }
+  })
+  const onToggleAnimations = (next) => {
+    setAnimationsEnabled(!!next)
+    try { localStorage.setItem('animationsEnabled', JSON.stringify(!!next)) } catch {}
+  }
   // Guard agar finalizeCapture hanya dieksekusi sekali per sesi capture
   const captureFinalizedRef = useRef(false)
   // Tambahkan overlay evolusi (animasi singkat saat evolve)
@@ -585,6 +593,8 @@ async function handleLogin(u, p) {
             // onOpenEvo={() => setEvoOpen(true)}
             isAuthenticated={isAuthenticated}
             onLogout={() => handleLogout('manual')}
+            animationsEnabled={animationsEnabled}
+            onToggleAnimations={onToggleAnimations}
           />
           <main>
             {loading && (
@@ -671,7 +681,12 @@ async function handleLogin(u, p) {
             open={endOpen}
             data={endData}
             onClose={() => setEndOpen(false)}
-            onRematch={() => { setEndOpen(false); setBattleOpen(true) }}
+            onRematch={() => {
+              setEndOpen(false)
+              if (lastOpponent) startBattle(lastOpponent)
+            }}
+            animationsEnabled={animationsEnabled}
+            weaponCount={weapons.length}
           />
         </>
       ) : (

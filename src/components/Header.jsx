@@ -13,6 +13,8 @@ export default function Header({
   onOpenBag,
   isAuthenticated,
   onLogout,
+  animationsEnabled,
+  onToggleAnimations,
 }) {
   const [newUser, setNewUser] = useState('')
   return (
@@ -65,6 +67,10 @@ export default function Header({
         <label className="cap-toggle">
           <input type="checkbox" checked={capturedOnly} onChange={(e) => setCapturedOnly(e.target.checked)} />
           Tangkapan 🎯
+        </label>
+        <label className="anim-toggle">
+          <input type="checkbox" checked={!!animationsEnabled} onChange={(e) => onToggleAnimations && onToggleAnimations(e.target.checked)} />
+          Animasi ✨
         </label>
         <button className="captures-menu" onClick={onOpenCaptures}>Tangkapan Saya</button>
         {/* Auth actions */}

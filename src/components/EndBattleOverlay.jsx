@@ -7,7 +7,7 @@ import swordIcon from '../assets/icons/sword.svg'
 import trophyIcon from '../assets/icons/trophy.svg'
 import badgeIcon from '../assets/icons/badge.svg'
 
-export default function EndBattleOverlay({ open, data, onClose, onRematch }) {
+export default function EndBattleOverlay({ open, data, onClose, onRematch, animationsEnabled = true }) {
   if (!open || !data) return null
   const { result, metrics, rewards } = data
   const isWin = result === 'win'
@@ -17,7 +17,7 @@ export default function EndBattleOverlay({ open, data, onClose, onRematch }) {
   useEffect(() => {
     if (!open) return
     setPhase('in')
-    if (isWin) {
+    if (isWin && animationsEnabled) {
       const themeColors = ['#7c3aed', '#6366f1', '#3b82f6', '#06b6d4', '#a78bfa']
       const pieces = Array.from({ length: 40 }).map(() => ({
         left: Math.round(Math.random() * 100),
@@ -31,24 +31,31 @@ export default function EndBattleOverlay({ open, data, onClose, onRematch }) {
     } else {
       setConfetti([])
     }
-  }, [open, isWin])
+  }, [open, isWin, animationsEnabled])
 
   const handleClose = () => {
-    setPhase('out')
-    setTimeout(() => {
+    if (animationsEnabled) {
+      setPhase('out')
+      setTimeout(() => { onClose?.() }, 180)
+    } else {
       onClose?.()
-    }, 180)
+    }
   }
   const handleRematch = () => {
-    setPhase('out')
-    setTimeout(() => {
+    if (animationsEnabled) {
+      setPhase('out')
+      setTimeout(() => { onRematch?.() }, 180)
+    } else {
       onRematch?.()
-    }, 180)
+    }
   }
 
+  const backdropAnimClass = animationsEnabled ? (phase === 'out' ? 'anim-out' : 'anim-in') : ''
+  const arenaAnimClass = animationsEnabled ? (phase === 'out' ? 'anim-out' : 'anim-in') : ''
+
   return (
-    <div className={`end-backdrop ${phase === 'out' ? 'anim-out' : 'anim-in'}`} onClick={handleClose}>
-      {isWin && (
+    <div className={`end-backdrop ${backdropAnimClass}`} onClick={handleClose}>
+      {isWin && animationsEnabled && (
         <div className="confetti-container" aria-hidden>
           {confetti.map((c, i) => (
             <div
@@ -66,7 +73,7 @@ export default function EndBattleOverlay({ open, data, onClose, onRematch }) {
         </div>
       )}
       {!isWin && <div className="defeat-haze" aria-hidden />}
-      <div className={`end-arena ${isWin ? 'victory' : 'defeat'} ${phase === 'out' ? 'anim-out' : 'anim-in'}`} onClick={e=>e.stopPropagation()}>
+      <div className={`end-arena ${isWin ? 'victory' : 'defeat'} ${arenaAnimClass}`} onClick={e=>e.stopPropagation()}>
         <h2 className="end-title">{isWin ? 'Victory!' : 'Defeat'}</h2>
         <div className="end-summary">
           <div className="sum-item">Turns: <b>{metrics?.turns ?? '-'}</b></div>
